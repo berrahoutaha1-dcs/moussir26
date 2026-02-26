@@ -83,10 +83,15 @@ function createTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code_client TEXT NOT NULL UNIQUE,
       nom_complet TEXT NOT NULL,
+      nom TEXT,
+      prenom TEXT,
       telephone TEXT,
+      telephone02 TEXT,
       email TEXT,
       adresse TEXT,
       ville TEXT,
+      activite TEXT,
+      representant TEXT,
       nif TEXT,
       nis TEXT,
       rc TEXT,
@@ -98,6 +103,44 @@ function createTables() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+
+  // Check if new columns exist, if not add them (for existing databases)
+  const columns = db.prepare("PRAGMA table_info(clients)").all();
+  const columnNames = columns.map(c => c.name);
+
+  if (!columnNames.includes('nom')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN nom TEXT").run();
+  }
+  if (!columnNames.includes('prenom')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN prenom TEXT").run();
+  }
+  if (!columnNames.includes('telephone02')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN telephone02 TEXT").run();
+  }
+  if (!columnNames.includes('activite')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN activite TEXT").run();
+  }
+  if (!columnNames.includes('representant')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN representant TEXT").run();
+  }
+  if (!columnNames.includes('representant_id')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN representant_id INTEGER").run();
+  }
+  if (!columnNames.includes('photo')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN photo TEXT").run();
+  }
+  if (!columnNames.includes('limite_credit')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN limite_credit REAL DEFAULT 0").run();
+  }
+  if (!columnNames.includes('montant_total')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN montant_total REAL DEFAULT 0").run();
+  }
+  if (!columnNames.includes('montant_paye')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN montant_paye REAL DEFAULT 0").run();
+  }
+  if (!columnNames.includes('factures_count')) {
+    db.prepare("ALTER TABLE clients ADD COLUMN factures_count INTEGER DEFAULT 0").run();
+  }
 
   // Categories Table
   db.prepare(`
@@ -159,6 +202,7 @@ function createTables() {
       alert_quantity REAL DEFAULT 0,
       batch_number TEXT,
       expiry_date TEXT,
+      production_date TEXT,
       image_path TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -185,8 +229,10 @@ function createTables() {
       designation TEXT,
       quantity REAL DEFAULT 0,
       expiry_date TEXT,
+      production_date TEXT,
       reception_date DATETIME DEFAULT CURRENT_TIMESTAMP,
       alert_date TEXT,
+      alert_quantity REAL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -276,6 +322,101 @@ function createTables() {
 
   // Force removal of legacy default depots
   db.prepare("DELETE FROM storehouses WHERE id IN ('wh1', 'wh2')").run();
+
+  // Client Payments Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS client_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      method TEXT,
+      reference TEXT,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+    )
+  `).run();
+
+  // Client Transactions Table (Ledger)
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS client_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      type TEXT NOT NULL, -- 'sale', 'return', 'payment', 'initial_balance'
+      date TEXT NOT NULL,
+      amount REAL NOT NULL,
+      debit REAL DEFAULT 0,
+      credit REAL DEFAULT 0,
+      balance_after REAL DEFAULT 0,
+      reference TEXT,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+    )
+  `).run();
+
+  // Representatives Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS representatives (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nom TEXT NOT NULL,
+      prenom TEXT NOT NULL,
+      telephone TEXT,
+      email TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  // Service Categories Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS service_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  // Services Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS services (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      category_id INTEGER,
+      price REAL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES service_categories(id) ON DELETE SET NULL
+    )
+  `).run();
+
+  // ── Migrations ──────────────────────────────────────────────────────────────
+  // Add alert_quantity to batches if it doesn't exist yet
+  try {
+    db.prepare(`ALTER TABLE batches ADD COLUMN alert_quantity REAL DEFAULT 0`).run();
+  } catch (_) {
+    // Column already exists – ignore
+  }
+
+  // Add production_date to batches if it doesn't exist yet
+  try {
+    db.prepare(`ALTER TABLE batches ADD COLUMN production_date TEXT`).run();
+  } catch (_) {
+    // Column already exists – ignore
+  }
+
+  // Add production_date to products if it doesn't exist yet
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN production_date TEXT`).run();
+  } catch (_) {
+    // Column already exists – ignore
+  }
 }
 
 module.exports = {

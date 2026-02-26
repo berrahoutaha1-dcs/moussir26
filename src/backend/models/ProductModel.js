@@ -31,6 +31,7 @@ class ProductModel extends BaseModel {
     this.alertQuantity = data.alertQuantity !== undefined ? parseFloat(data.alertQuantity) : (data.alert_quantity !== undefined ? parseFloat(data.alert_quantity) : 0);
     this.batchNumber = data.batchNumber || data.batch_number || null;
     this.expiryDate = data.expiryDate || data.expiry_date || null;
+    this.productionDate = data.productionDate || data.production_date || null;
     this.imagePath = data.imagePath || data.image_path || null;
     this.storehouseStocks = data.storehouseStocks || [];
 
@@ -71,6 +72,7 @@ class ProductModel extends BaseModel {
       alert_quantity: this.alertQuantity,
       batch_number: this.batchNumber,
       expiry_date: this.expiryDate,
+      production_date: this.productionDate,
       image_path: this.imagePath,
       created_at: this.createdAt,
       updated_at: this.updatedAt
@@ -110,6 +112,7 @@ class ProductModel extends BaseModel {
       alertQuantity: dbData.alert_quantity,
       batchNumber: dbData.batch_number,
       expiryDate: dbData.expiry_date,
+      productionDate: dbData.production_date,
       imagePath: dbData.image_path,
       categoryName: dbData.category_name,
       familyName: dbData.family_name,

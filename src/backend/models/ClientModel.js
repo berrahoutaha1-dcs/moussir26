@@ -7,13 +7,19 @@ const BaseModel = require('./BaseModel');
 class ClientModel extends BaseModel {
   constructor(data = {}) {
     super(data);
-    
+
     this.codeClient = data.codeClient || data.code_client || '';
     this.nomComplet = data.nomComplet || data.nom_complet || '';
+    this.nom = data.nom || '';
+    this.prenom = data.prenom || '';
     this.telephone = data.telephone || null;
+    this.telephone02 = data.telephone02 || data.telephone_02 || null;
     this.email = data.email || null;
     this.adresse = data.adresse || null;
     this.ville = data.ville || null;
+    this.activite = data.activite || null;
+    this.representant = data.representant || null;
+    this.representantId = data.representantId || data.representant_id || null;
     this.nif = data.nif || null;
     this.nis = data.nis || null;
     this.rc = data.rc || null;
@@ -21,6 +27,11 @@ class ClientModel extends BaseModel {
     this.solde = data.solde !== undefined ? parseFloat(data.solde) : 0;
     this.typeSolde = data.typeSolde || data.type_solde || 'positif';
     this.statut = data.statut || 'actif';
+    this.photo = data.photo || null;
+    this.limiteCredit = data.limiteCredit || data.limite_credit || 0;
+    this.montantTotal = data.montantTotal || data.montant_total || 0;
+    this.montantPaye = data.montantPaye || data.montant_paye || 0;
+    this.facturesCount = data.facturesCount || data.factures_count || 0;
   }
 
   /**
@@ -32,10 +43,16 @@ class ClientModel extends BaseModel {
       id: this.id,
       code_client: this.codeClient,
       nom_complet: this.nomComplet,
+      nom: this.nom,
+      prenom: this.prenom,
       telephone: this.telephone,
+      telephone02: this.telephone02,
       email: this.email,
       adresse: this.adresse,
       ville: this.ville,
+      activite: this.activite,
+      representant: this.representant,
+      representant_id: this.representantId,
       nif: this.nif,
       nis: this.nis,
       rc: this.rc,
@@ -43,6 +60,11 @@ class ClientModel extends BaseModel {
       solde: this.solde,
       type_solde: this.typeSolde,
       statut: this.statut,
+      photo: this.photo,
+      limite_credit: this.limiteCredit,
+      montant_total: this.montantTotal,
+      montant_paye: this.montantPaye,
+      factures_count: this.facturesCount,
       created_at: this.createdAt,
       updated_at: this.updatedAt
     };
@@ -55,15 +77,21 @@ class ClientModel extends BaseModel {
    */
   static fromDatabase(dbData) {
     if (!dbData) return null;
-    
+
     return new ClientModel({
       id: dbData.id,
       codeClient: dbData.code_client,
       nomComplet: dbData.nom_complet,
+      nom: dbData.nom,
+      prenom: dbData.prenom,
       telephone: dbData.telephone,
+      telephone02: dbData.telephone02,
       email: dbData.email,
       adresse: dbData.adresse,
       ville: dbData.ville,
+      activite: dbData.activite,
+      representant: dbData.representant,
+      representantId: dbData.representant_id,
       nif: dbData.nif,
       nis: dbData.nis,
       rc: dbData.rc,
@@ -71,6 +99,11 @@ class ClientModel extends BaseModel {
       solde: dbData.solde,
       typeSolde: dbData.type_solde,
       statut: dbData.statut,
+      photo: dbData.photo,
+      limiteCredit: dbData.limite_credit,
+      montantTotal: dbData.montant_total,
+      montantPaye: dbData.montant_paye,
+      facturesCount: dbData.factures_count,
       createdAt: dbData.created_at,
       updatedAt: dbData.updated_at
     });

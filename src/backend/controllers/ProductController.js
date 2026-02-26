@@ -71,6 +71,22 @@ class ProductController {
             return ErrorHandler.handleError(error, 'ProductController.search');
         }
     }
+
+    async recalculateAllStock() {
+        try {
+            return await this.service.recalculateAllStock();
+        } catch (error) {
+            return ErrorHandler.handleError(error, 'ProductController.recalculateAllStock');
+        }
+    }
+
+    async recalculateStoreStock() {
+        try {
+            return await this.service.recalculateStoreStock();
+        } catch (error) {
+            return ErrorHandler.handleError(error, 'ProductController.recalculateStoreStock');
+        }
+    }
 }
 
 module.exports = ProductController;

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, Users, DollarSign, AlertTriangle, FileText, Download, History, Edit, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import ClientPaymentModal from './ClientPaymentModal';
 import PaymentHistoryModal from './PaymentHistoryModal';
 import { useLanguage } from '../contexts/LanguageContext';
+import apiService from '../services/api';
 
 export default function ClientSituationModal({ isOpen, onClose }) {
   const { language } = useLanguage();
@@ -13,114 +14,64 @@ export default function ClientSituationModal({ isOpen, onClose }) {
   const [selectedClient, setSelectedClient] = useState(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Données d'exemple des clients
-  const clientsData = [
-    {
-      id: 'CLI001',
-      nom: 'Société ALPHA',
-      code: 'ALPHA2024',
-      email: 'contact@alpha.dz',
-      telephone: '0555 123 456',
-      adresse: 'Zone Industrielle, Alger',
-      facturesNombre: 15,
-      montantTotal: 2450000,
-      montantPaye: 2100000,
-      montantDu: 350000,
-      montantEchu: 0,
-      statut: 'excellent',
-      dernierPaiement: '2024-01-15',
-      prochaineEcheance: '2024-02-15',
-      limiteCredit: 5000000,
-      representant: 'Ahmed Benali'
-    },
-    {
-      id: 'CLI002',
-      nom: 'BETA Distribution',
-      code: 'BETA2024',
-      email: 'finance@beta.dz',
-      telephone: '0661 234 567',
-      adresse: 'Centre Ville, Oran',
-      facturesNombre: 8,
-      montantTotal: 1800000,
-      montantPaye: 1200000,
-      montantDu: 600000,
-      montantEchu: 150000,
-      statut: 'attention',
-      dernierPaiement: '2023-12-20',
-      prochaineEcheance: '2024-01-20',
-      limiteCredit: 3000000,
-      representant: 'Fatima Kaci'
-    },
-    {
-      id: 'CLI003',
-      nom: 'GAMMA Entreprise',
-      code: 'GAMMA2024',
-      email: 'admin@gamma.dz',
-      telephone: '0770 345 678',
-      adresse: 'Zone d\'Activité, Constantine',
-      facturesNombre: 22,
-      montantTotal: 4200000,
-      montantPaye: 2800000,
-      montantDu: 1400000,
-      montantEchu: 800000,
-      statut: 'critique',
-      dernierPaiement: '2023-11-10',
-      prochaineEcheance: '2023-12-10',
-      limiteCredit: 2500000,
-      representant: 'Mohamed Saidi'
-    },
-    {
-      id: 'CLI004',
-      nom: 'DELTA Services',
-      code: 'DELTA2024',
-      email: 'compta@delta.dz',
-      telephone: '0556 456 789',
-      adresse: 'Nouveau Pôle, Annaba',
-      facturesNombre: 12,
-      montantTotal: 1950000,
-      montantPaye: 1950000,
-      montantDu: 0,
-      montantEchu: 0,
-      statut: 'excellent',
-      dernierPaiement: '2024-01-10',
-      prochaineEcheance: '2024-02-10',
-      limiteCredit: 4000000,
-      representant: 'Amina Benaissa'
-    },
-    {
-      id: 'CLI005',
-      nom: 'EPSILON Commerce',
-      code: 'EPSILON2024',
-      email: 'direction@epsilon.dz',
-      telephone: '0662 567 890',
-      adresse: 'Zone Commerciale, Sétif',
-      facturesNombre: 18,
-      montantTotal: 3100000,
-      montantPaye: 2600000,
-      montantDu: 500000,
-      montantEchu: 200000,
-      statut: 'attention',
-      dernierPaiement: '2023-12-15',
-      prochaineEcheance: '2024-01-15',
-      limiteCredit: 3500000,
-      representant: 'Karim Tizi'
+  // Fetch clients from database
+  const fetchClients = async () => {
+    setLoading(true);
+    try {
+      const response = await apiService.getAllClients();
+      if (response.success) {
+        setClients(response.data);
+      } else {
+        toast.error(language === 'ar' ? 'فشل تحميل البيانات' : 'Échec du chargement des données');
+      }
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      toast.error(language === 'ar' ? 'حدث خطأ أثناء تحميل البيانات' : 'Erreur lors du chargement des données');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchClients();
+    }
+
+    const handleUpdate = () => {
+      if (isOpen) fetchClients();
+    };
+
+    window.addEventListener('clientUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('clientUpdated', handleUpdate);
+    };
+  }, [isOpen, language]);
 
   // Filtrage des clients
-  const filteredClients = clientsData.filter(client => {
-    const matchesSearch = client.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredClients = clients.filter(client => {
+    const nom = client.nomComplet || `${client.prenom} ${client.nom}` || '';
+    const code = client.codeClient || '';
+    const email = client.email || '';
+
+    const matchesSearch = nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase());
 
     return matchesSearch;
   });
 
   // Calculs des statistiques
-  const totalClients = clientsData.length;
-  const totalMontantPaye = clientsData.reduce((sum, client) => sum + client.montantPaye, 0);
-  const totalMontantDu = clientsData.reduce((sum, client) => sum + client.montantDu, 0);
+  const totalClientsCount = clients.length;
+  const totalMontantPaye = clients.reduce((sum, client) => sum + (client.montantPaye || 0), 0);
+
+  // For total due, we use the negative solde logic if montantDu is not explicitly tracked as a sum
+  const totalMontantDu = clients.reduce((sum, client) => {
+    if (client.typeSolde === 'negatif') return sum + Math.abs(client.solde);
+    return sum;
+  }, 0);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('fr-DZ', {
@@ -132,6 +83,7 @@ export default function ClientSituationModal({ isOpen, onClose }) {
   };
 
   const exportToPDF = () => {
+    // Standard PDF export logic
     const currentDate = new Date().toLocaleDateString('fr-FR');
     const currentTime = new Date().toLocaleTimeString('fr-FR');
 
@@ -140,7 +92,7 @@ export default function ClientSituationModal({ isOpen, onClose }) {
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Situation des Clients - LogiSoft 360</title>
+        <title>Situation des Clients - Moussir 26</title>
         <style>
           @page { margin: 20mm; }
           body { 
@@ -256,7 +208,7 @@ export default function ClientSituationModal({ isOpen, onClose }) {
       </head>
       <body>
         <div class="header">
-          <h1>LogiSoft 360</h1>
+          <h1>Moussir 26</h1>
           <p>Situation des Clients</p>
           <p>Généré le ${currentDate} à ${currentTime}</p>
         </div>
@@ -264,7 +216,7 @@ export default function ClientSituationModal({ isOpen, onClose }) {
         <div class="summary">
           <div class="summary-item">
             <div class="summary-title">Total Clients</div>
-            <div class="summary-value" style="color: #2563eb;">${totalClients}</div>
+            <div class="summary-value" style="color: #2563eb;">${totalClientsCount}</div>
           </div>
           <div class="summary-item">
             <div class="summary-title">Total Payé</div>
@@ -290,23 +242,23 @@ export default function ClientSituationModal({ isOpen, onClose }) {
           <tbody>
             ${filteredClients.map(client => `
               <tr>
-                <td class="client-name">${client.nom}</td>
-                <td class="client-code">${client.code}</td>
+                <td class="client-name">${client.nomComplet || `${client.prenom} ${client.nom}`}</td>
+                <td class="client-code">${client.codeClient}</td>
                 <td>
-                  <div>${client.telephone}</div>
-                  <div style="font-size: 10px; color: #666;">${client.email}</div>
-                  <div style="font-size: 10px; color: #8b5cf6;">Rep: ${client.representant}</div>
+                  <div>${client.telephone || ''}</div>
+                  <div style="font-size: 10px; color: #666;">${client.email || ''}</div>
+                  <div style="font-size: 10px; color: #8b5cf6;">Rep: ${client.representant || ''}</div>
                 </td>
-                <td style="text-align: center;">${client.facturesNombre}</td>
-                <td class="amount-total">${formatCurrency(client.montantTotal)}</td>
-                <td class="amount-paid">${formatCurrency(client.montantPaye)}</td>
+                <td style="text-align: center;">${client.facturesCount || 0}</td>
+                <td class="amount-total">${formatCurrency(client.montantTotal || 0)}</td>
+                <td class="amount-paid">${formatCurrency(client.montantPaye || 0)}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
 
         <div class="footer">
-          <div>Document généré par LogiSoft 360 - Système de Gestion Commerciale</div>
+          <div>Document généré par Moussir 26 - Système de Gestion Commerciale</div>
           <div>© ${new Date().getFullYear()} - Tous droits réservés</div>
         </div>
       </body>
@@ -330,16 +282,17 @@ export default function ClientSituationModal({ isOpen, onClose }) {
     let csvContent = headers.join(',') + '\n';
 
     filteredClients.forEach(client => {
+      const montantDu = client.typeSolde === 'negatif' ? Math.abs(client.solde) : 0;
       const row = [
-        `"${client.nom}"`,
-        `"${client.code}"`,
-        `"${client.email}"`,
-        `"${client.telephone}"`,
-        `"${client.representant}"`,
-        client.facturesNombre,
-        client.montantTotal,
-        client.montantPaye,
-        client.montantDu
+        `"${client.nomComplet || `${client.prenom} ${client.nom}`}"`,
+        `"${client.codeClient}"`,
+        `"${client.email || ''}"`,
+        `"${client.telephone || ''}"`,
+        `"${client.representant || ''}"`,
+        client.facturesCount || 0,
+        client.montantTotal || 0,
+        client.montantPaye || 0,
+        montantDu
       ];
       csvContent += row.join(',') + '\n';
     });
@@ -355,16 +308,6 @@ export default function ClientSituationModal({ isOpen, onClose }) {
     URL.revokeObjectURL(url);
   };
 
-  const handlePaymentClick = (client) => {
-    setSelectedClient(client);
-    setIsPaymentModalOpen(true);
-  };
-
-  const handlePaymentModalClose = () => {
-    setIsPaymentModalOpen(false);
-    setSelectedClient(null);
-  };
-
   const handleEditClient = (client) => {
     setSelectedClient(client);
     setIsPaymentModalOpen(true);
@@ -373,10 +316,6 @@ export default function ClientSituationModal({ isOpen, onClose }) {
   const handleViewHistory = (client) => {
     setSelectedClientForHistory(client);
     setIsHistoryModalOpen(true);
-  };
-
-  const handleDeleteClient = (clientId) => {
-    toast.warning(language === 'ar' ? `حذف العميل #${clientId}` : `Suppression du client #${clientId}`);
   };
 
   if (!isOpen) return null;
@@ -415,7 +354,7 @@ export default function ClientSituationModal({ isOpen, onClose }) {
                 </div>
                 <div>
                   <p className="text-sm text-blue-600 font-medium">Total Clients</p>
-                  <p className="text-2xl font-bold text-blue-700">{totalClients}</p>
+                  <p className="text-2xl font-bold text-blue-700">{totalClientsCount}</p>
                 </div>
               </div>
             </div>
@@ -463,84 +402,93 @@ export default function ClientSituationModal({ isOpen, onClose }) {
         {/* Table des clients */}
         <div className="flex-1 overflow-hidden">
           <div className="h-full overflow-y-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-purple-50 to-purple-100 sticky top-0 z-10">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-purple-700 border-b border-gray-200">Client</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Contact</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Factures</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Montants (DZD)</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredClients.map((client, index) => (
-                  <tr key={client.id} className={`border-b border-gray-100 hover:bg-purple-50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="font-semibold text-gray-900">{client.nom}</div>
-                        <div className="text-sm text-gray-600">{client.code}</div>
-                        <div className="text-xs text-gray-500">{client.adresse}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="text-sm text-gray-900">{client.telephone}</div>
-                      <div className="text-xs text-gray-600">{client.email}</div>
-                      <div className="text-xs text-purple-600 font-medium">Rep: {client.representant}</div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <FileText className="w-4 h-4 text-gray-500" />
-                        <span className="font-semibold text-gray-900">{client.facturesNombre}</span>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Limite: {formatCurrency(client.limiteCredit)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="space-y-1">
-                        <div className="text-sm">
-                          <span className="text-gray-600">Total: </span>
-                          <span className="font-semibold text-gray-900">{formatCurrency(client.montantTotal)}</span>
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-gray-600">Payé: </span>
-                          <span className="font-semibold text-green-600">{formatCurrency(client.montantPaye)}</span>
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-gray-600">Dû: </span>
-                          <span className="font-semibold text-orange-600">{formatCurrency(client.montantDu)}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleViewHistory(client)}
-                          className="w-8 h-8 p-0 hover:bg-blue-100 hover:text-blue-600"
-                          title={language === 'ar' ? 'سجل المدفوعات' : 'Historique des paiements'}
-                        >
-                          <History className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEditClient(client)}
-                          className="w-8 h-8 p-0 hover:bg-orange-100 hover:text-orange-600"
-                          title={language === 'ar' ? 'تعديل' : 'Modifier'}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-purple-50 to-purple-100 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-purple-700 border-b border-gray-200">Client</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Contact</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Factures</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Montants (DZD)</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 border-b border-gray-200">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredClients.map((client, index) => {
+                    const montantDu = client.typeSolde === 'negatif' ? Math.abs(client.solde) : 0;
+                    return (
+                      <tr key={client.id} className={`border-b border-gray-100 hover:bg-purple-50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="font-semibold text-gray-900">{client.nomComplet || `${client.prenom} ${client.nom}`}</div>
+                            <div className="text-sm text-gray-600">{client.codeClient}</div>
+                            <div className="text-xs text-gray-500">{client.adresse}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="text-sm text-gray-900">{client.telephone}</div>
+                          <div className="text-xs text-gray-600">{client.email}</div>
+                          <div className="text-xs text-purple-600 font-medium">Rep: {client.representant}</div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <FileText className="w-4 h-4 text-gray-500" />
+                            <span className="font-semibold text-gray-900">{client.facturesCount || 0}</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Limite: {formatCurrency(client.limiteCredit || 0)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="space-y-1">
+                            <div className="text-sm">
+                              <span className="text-gray-600">Total: </span>
+                              <span className="font-semibold text-gray-900">{formatCurrency(client.montantTotal || 0)}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-gray-600">Payé: </span>
+                              <span className="font-semibold text-green-600">{formatCurrency(client.montantPaye || 0)}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-gray-600">Dû: </span>
+                              <span className="font-semibold text-orange-600">{formatCurrency(montantDu)}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewHistory(client)}
+                              className="w-8 h-8 p-0 hover:bg-blue-100 hover:text-blue-600"
+                              title={language === 'ar' ? 'سجل المدفوعات' : 'Historique des paiements'}
+                            >
+                              <History className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditClient(client)}
+                              className="w-8 h-8 p-0 hover:bg-orange-100 hover:text-orange-600"
+                              title={language === 'ar' ? 'تعديل' : 'Modifier'}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
 
-            {filteredClients.length === 0 && (
+            {!loading && filteredClients.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-gray-500">
                 <Users className="w-16 h-16 mb-4 opacity-50" />
                 <p className="text-lg font-medium">Aucun client trouvé</p>
@@ -553,7 +501,7 @@ export default function ClientSituationModal({ isOpen, onClose }) {
         {/* Footer */}
         <div className="modal-footer">
           <div className="text-sm text-gray-600 mr-auto">
-            Affichage de {filteredClients.length} client(s) sur {totalClients} au total
+            Affichage de {filteredClients.length} client(s) sur {totalClientsCount} au total
           </div>
           <div className="flex gap-3">
             <button
@@ -578,17 +526,21 @@ export default function ClientSituationModal({ isOpen, onClose }) {
       </div>
 
       {/* Client Payment Modal */}
-      <ClientPaymentModal
-        isOpen={isPaymentModalOpen}
-        onClose={handlePaymentModalClose}
-        clientData={selectedClient}
-      />
+      {isPaymentModalOpen && (
+        <ClientPaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          clientData={selectedClient}
+        />
+      )}
 
-      <PaymentHistoryModal
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        clientData={selectedClientForHistory}
-      />
+      {isHistoryModalOpen && (
+        <PaymentHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          clientData={selectedClientForHistory}
+        />
+      )}
     </div>
   );
 }

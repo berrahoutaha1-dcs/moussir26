@@ -511,6 +511,7 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
         alertQuantity: parseFloat(formData.alertQuantity) || 0,
         batchNumber: formData.batchNumber,
         expiryDate: formData.expiryDate,
+        productionDate: formData.productionDate,
         image: formData.imagePreview, // Base64 image data
         storehouseStocks: formData.storehouseStocks // Include depot breakdown in save
       };
@@ -1130,9 +1131,9 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
                   >
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-500" />
-                      <span className={formData.expiryDate ? "text-slate-900" : "text-slate-500"}>
-                        {formData.expiryDate
-                          ? `Expir: ${formData.expiryDate}`
+                      <span className={(formData.expiryDate || formData.productionDate) ? "text-slate-900" : "text-slate-500"}>
+                        {formData.expiryDate || formData.productionDate
+                          ? `${formData.productionDate ? `Prod: ${formData.productionDate}` : ''}${formData.productionDate && formData.expiryDate ? ' | ' : ''}${formData.expiryDate ? `Expir: ${formData.expiryDate}` : ''}`
                           : 'Production & Péremption'}
                       </span>
                     </div>
@@ -1990,6 +1991,7 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
                       <div className="space-y-3">
                         {[
                           { id: 'barcode_price', label: 'Code-barre et prix' },
+                          { id: 'barcode_price_name', label: 'Code-barre et prix et nom de produit' },
                           { id: 'price_ticket', label: 'Ticket de prix' },
                           { id: 'barcode_only', label: 'Code-Barres' }
                         ].map(type => (
@@ -2022,8 +2024,17 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
 
                     {/* Visual Preview Box */}
                     <div className="bg-white p-6 shadow-sm border border-slate-200 rounded-lg flex flex-col items-center justify-center space-y-4 w-[280px] min-h-[180px]">
+                      {/* Product Name if selected */}
+                      {printSettings.type === 'barcode_price_name' && (
+                        <div className="text-center mb-2 px-2">
+                          <span className="text-sm font-bold text-slate-700 line-clamp-2 uppercase">
+                            {formData.designation}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Fake Barcode CSS */}
-                      {(printSettings.type === 'barcode_price' || printSettings.type === 'barcode_only') && (
+                      {(printSettings.type === 'barcode_price' || printSettings.type === 'barcode_price_name' || printSettings.type === 'barcode_only') && (
                         <div className="flex flex-col items-center">
                           <div className="flex items-end gap-[1px] h-16 w-full max-w-[200px] mb-1">
                             {[1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 1, 2, 1, 2, 1, 3, 1, 2, 1].map((w, i) => (
@@ -2037,7 +2048,7 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
                         </div>
                       )}
 
-                      {(printSettings.type === 'barcode_price' || printSettings.type === 'price_ticket') && (
+                      {(printSettings.type === 'barcode_price' || printSettings.type === 'barcode_price_name' || printSettings.type === 'price_ticket') && (
                         <div className="text-center">
                           <span className="text-2xl font-black text-slate-900">
                             {parseFloat(formData.retail).toFixed(2)} DA
@@ -2091,11 +2102,16 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
     }
     .barcode-text { font-size: 8px; font-weight: bold; margin-top: 1px; font-family: monospace; letter-spacing: 1px; }
     .price-text { font-size: 14px; font-weight: 900; margin-top: 2px; }
+    .name-text { font-size: 10px; font-weight: bold; margin-bottom: 2px; text-align: center; width: 90%; text-transform: uppercase; }
     .only-price { font-size: 20px; font-weight: 900; }
   </style>
 </head>
 <body>
-  ${(printSettings.type === 'barcode_price' || printSettings.type === 'barcode_only') ? `
+  ${printSettings.type === 'barcode_price_name' ? `
+    <div class="name-text">${formData.designation}</div>
+  ` : ''}
+
+  ${(printSettings.type === 'barcode_price' || printSettings.type === 'barcode_price_name' || printSettings.type === 'barcode_only') ? `
     <div class="barcode-container">
       <div class="bars">
         ${[1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 1, 2, 1, 2, 1, 3, 1, 2, 1, 1, 2, 1, 1, 3, 1, 2, 1, 4, 1, 1, 3, 1, 2, 1, 2, 1, 1, 2, 1].map((w, i) => `
@@ -2106,7 +2122,7 @@ export default function NewProductModal({ isOpen, onClose, productData = null, i
     </div>
   ` : ''}
 
-  ${(printSettings.type === 'barcode_price' || printSettings.type === 'price_ticket') ? `
+  ${(printSettings.type === 'barcode_price' || printSettings.type === 'barcode_price_name' || printSettings.type === 'price_ticket') ? `
     <div class="${printSettings.type === 'price_ticket' ? 'only-price' : 'price-text'}">
       ${parseFloat(formData.retail).toFixed(2)} DA
     </div>

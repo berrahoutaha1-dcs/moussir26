@@ -71,6 +71,15 @@ const IPC_CHANNELS = {
     DELETE: 'clients:delete',
     SEARCH: 'clients:search'
   },
+  CLIENT_PAYMENTS: {
+    GET_BY_CLIENT: 'client_payments:getByClient',
+    CREATE: 'client_payments:create',
+    DELETE: 'client_payments:delete'
+  },
+  CLIENT_TRANSACTIONS: {
+    GET_BY_CLIENT: 'client_transactions:getByClient',
+    CREATE: 'client_transactions:create'
+  },
   PRODUCTS: {
     GET_ALL: 'products:getAll',
     GET_BY_ID: 'products:getById',
@@ -78,7 +87,9 @@ const IPC_CHANNELS = {
     CREATE: 'products:create',
     UPDATE: 'products:update',
     DELETE: 'products:delete',
-    SEARCH: 'products:search'
+    SEARCH: 'products:search',
+    RECALCULATE_STOCK: 'products:recalculateStock',
+    RECALCULATE_ALL_STOCK: 'products:recalculateAllStock'
   },
   CATEGORIES: {
     GET_ALL: 'categories:getAll',
@@ -131,6 +142,29 @@ const IPC_CHANNELS = {
     GET_BY_STOREHOUSE: 'shelves:getByStorehouse',
     CREATE: 'shelves:create',
     DELETE: 'shelves:delete'
+  },
+  SERVICES: {
+    GET_ALL: 'services:getAll',
+    GET_BY_ID: 'services:getById',
+    CREATE: 'services:create',
+    UPDATE: 'services:update',
+    DELETE: 'services:delete',
+    SEARCH: 'services:search'
+  },
+  SERVICE_CATEGORIES: {
+    GET_ALL: 'service_categories:getAll',
+    GET_BY_ID: 'service_categories:getById',
+    CREATE: 'service_categories:create',
+    UPDATE: 'service_categories:update',
+    DELETE: 'service_categories:delete'
+  },
+  REPRESENTATIVES: {
+    GET_ALL: 'representatives:getAll',
+    GET_BY_ID: 'representatives:getById',
+    CREATE: 'representatives:create',
+    UPDATE: 'representatives:update',
+    DELETE: 'representatives:delete',
+    SEARCH: 'representatives:search'
   }
 };
 

@@ -1,98 +1,72 @@
-import React from 'react';
-import { X, Bell, AlertTriangle, Clock, Info, Settings } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Bell, AlertTriangle, Clock, Info, Package } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
-export default function NotificationsModal({ isOpen, onClose }) {
+export default function NotificationsModal({ isOpen, onClose, onCountChange }) {
   const { direction, t } = useLanguage();
+  const [stockAlerts, setStockAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadAlerts();
+    }
+  }, [isOpen]);
+
+  const loadAlerts = async () => {
+    setLoading(true);
+    try {
+      if (window.electronAPI?.batches?.getAll) {
+        const result = await window.electronAPI.batches.getAll();
+        if (result.success && result.data) {
+          // Filter batches where stock quantity is at or below the alert threshold
+          const alerts = result.data.filter(
+            (b) => b.alert_quantity > 0 && b.quantity <= b.alert_quantity
+          );
+          setStockAlerts(alerts);
+          // Notify parent of alert count
+          if (onCountChange) onCountChange(alerts.length);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading stock alerts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Escape') {
-      onClose();
-    }
+    if (e.key === 'Escape') onClose();
   };
 
-  // Mock data for notifications
-  const notifications = [
-    {
-      id: 1,
-      type: 'critical',
-      icon: AlertTriangle,
-      title: t('notifications.stockCritical'),
-      message: 'Smartphone Samsung Galaxy - ' + t('notifications.stockMessage').replace('{count}', '2'),
-      time: '10 ' + t('notifications.minutes') + ' ' + t('notifications.ago'),
-      priority: 'high'
-    },
-    {
-      id: 2,
-      type: 'warning',
-      icon: Clock,
-      title: t('notifications.subscriptionExpiring'),
-      message: t('notifications.subscriptionMessage').replace('{days}', '7').replace('{plan}', 'Plan Professionnel'),
-      time: '1 ' + t('notifications.hour') + ' ' + t('notifications.ago'),
-      priority: 'medium'
-    },
-    {
-      id: 3,
-      type: 'info',
-      icon: Info,
-      title: t('notifications.updateAvailable'),
-      message: t('notifications.updateMessage').replace('{version}', '2.1.0'),
-      time: '1 ' + t('notifications.day') + ' ' + t('notifications.ago'),
-      priority: 'low'
-    },
-    {
-      id: 6,
-      type: 'critical',
-      icon: Clock,
-      title: 'Rupture de stock imminente',
-      message: 'Imprimante HP LaserJet - Stock restant: 1 unité.',
-      time: '3 ' + t('notifications.hours') + ' ' + t('notifications.ago'),
-      priority: 'high'
-    },
-    {
-      id: 7,
-      type: 'critical',
-      icon: AlertTriangle,
-      title: 'Alerte Stock Bas',
-      message: 'Scanner Canon LiDE 300 - Stock restant: 5 unités.',
-      time: '4 ' + t('notifications.hours') + ' ' + t('notifications.ago'),
-      priority: 'high'
-    },
-  ];
+  // Determine severity based on how far below the threshold the stock is
+  const getSeverity = (batch) => {
+    const ratio = batch.quantity / batch.alert_quantity;
+    if (batch.quantity === 0) return 'critical';
+    if (ratio <= 0.5) return 'critical';
+    return 'warning';
+  };
 
-  const getNotificationStyle = (type) => {
-    switch (type) {
-      case 'critical':
-        return {
-          border: 'border-red-300',
-          bg: 'bg-red-50',
-          iconColor: 'text-red-600',
-          textColor: 'text-red-900'
-        };
-      case 'warning':
-        return {
-          border: 'border-yellow-300',
-          bg: 'bg-yellow-50',
-          iconColor: 'text-yellow-600',
-          textColor: 'text-yellow-900'
-        };
-      case 'info':
-        return {
-          border: 'border-blue-300',
-          bg: 'bg-blue-50',
-          iconColor: 'text-blue-600',
-          textColor: 'text-blue-900'
-        };
-      default:
-        return {
-          border: 'border-slate-300',
-          bg: 'bg-slate-50',
-          iconColor: 'text-slate-600',
-          textColor: 'text-slate-900'
-        };
-    }
+  const getStyle = (severity) => {
+    if (severity === 'critical')
+      return {
+        border: 'border-red-300',
+        bg: 'bg-red-50',
+        iconColor: 'text-red-600',
+        textColor: 'text-red-900',
+        badge: 'bg-red-100 text-red-700',
+        badgeText: 'Critique',
+      };
+    return {
+      border: 'border-amber-300',
+      bg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      textColor: 'text-amber-900',
+      badge: 'bg-amber-100 text-amber-700',
+      badgeText: 'Avertissement',
+    };
   };
 
   return (
@@ -114,10 +88,14 @@ export default function NotificationsModal({ isOpen, onClose }) {
             </div>
             <div>
               <h2 className="text-xl font-semibold" style={{ color: '#1b1b1b' }}>
-                {t('notifications.title')}
+                {t('notifications.title') || 'Notifications'}
               </h2>
               <p className="text-sm text-slate-600">
-                {notifications.length} {t('common.notification')}
+                {loading
+                  ? 'Chargement...'
+                  : stockAlerts.length > 0
+                    ? `${stockAlerts.length} alerte(s) de stock détectée(s)`
+                    : 'Aucune alerte de stock'}
               </p>
             </div>
           </div>
@@ -129,36 +107,98 @@ export default function NotificationsModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Notifications List */}
+        {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {notifications.map((notification) => {
-            const Icon = notification.icon;
-            const style = getNotificationStyle(notification.type);
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              <p className="text-sm">Analyse des stocks en cours…</p>
+            </div>
+          ) : stockAlerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
+                <Package className="w-8 h-8 text-emerald-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-slate-700 font-semibold text-lg">Tous les stocks sont OK</p>
+                <p className="text-slate-400 text-sm mt-1">
+                  Aucun lot n'est en dessous de son seuil d'alerte.
+                </p>
+              </div>
+            </div>
+          ) : (
+            stockAlerts.map((batch) => {
+              const severity = getSeverity(batch);
+              const style = getStyle(severity);
+              const Icon = severity === 'critical' ? AlertTriangle : Clock;
+              const deficit = batch.alert_quantity - batch.quantity;
 
-            return (
-              <div
-                key={notification.id}
-                className={`p-4 rounded-lg border ${style.border} ${style.bg} transition-all hover:shadow-md`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${style.bg}`}>
-                    <Icon className={`w-5 h-5 ${style.iconColor}`} />
+              return (
+                <div
+                  key={batch.id}
+                  className={`p-4 rounded-xl border ${style.border} ${style.bg} transition-all hover:shadow-md`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${style.bg}`}
+                    >
+                      <Icon className={`w-5 h-5 ${style.iconColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className={`font-bold text-sm ${style.textColor}`}>
+                          {batch.designation || `Lot ${batch.num_lot}`}
+                        </h3>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${style.badge}`}
+                        >
+                          {style.badgeText}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        Lot <span className="font-mono font-bold">{batch.num_lot}</span> — Stock
+                        actuel :{' '}
+                        <span className={`font-bold ${style.iconColor}`}>{batch.quantity}</span>{' '}
+                        unité(s) — Seuil :{' '}
+                        <span className="font-bold">{batch.alert_quantity}</span>
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Déficit de <strong>{deficit}</strong> unité(s) pour atteindre le seuil
+                        {batch.expiry_date && (
+                          <>
+                            {' '}
+                            · Péremption :{' '}
+                            <span className="font-semibold">
+                              {new Date(batch.expiry_date).toLocaleDateString('fr-DZ')}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className={`font-semibold mb-1 ${style.textColor}`}>
-                      {notification.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 mb-2">
-                      {notification.message}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {notification.time}
+
+                  {/* Mini progress bar */}
+                  <div className="mt-3 ml-14">
+                    <div className="w-full h-1.5 bg-white/60 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'
+                          }`}
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round((batch.quantity / batch.alert_quantity) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {Math.round((batch.quantity / batch.alert_quantity) * 100)}% du seuil
                     </p>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         {/* Footer */}
@@ -167,11 +207,10 @@ export default function NotificationsModal({ isOpen, onClose }) {
             onClick={onClose}
             className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 font-medium transition-colors"
           >
-            {t('common.close')}
+            {t('common.close') || 'Fermer'}
           </button>
         </div>
       </div>
     </div>
   );
 }
-

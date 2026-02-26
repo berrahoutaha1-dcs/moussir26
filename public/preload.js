@@ -30,6 +30,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, client) => ipcRenderer.invoke('db:clients:update', id, client),
     delete: (id) => ipcRenderer.invoke('db:clients:delete', id),
   },
+  clientPayments: {
+    getByClient: (clientId) => ipcRenderer.invoke('client_payments:getByClient', clientId),
+    create: (payment) => ipcRenderer.invoke('client_payments:create', payment),
+    delete: (id) => ipcRenderer.invoke('client_payments:delete', id),
+  },
+  clientTransactions: {
+    getByClient: (clientId) => ipcRenderer.invoke('client_transactions:getByClient', clientId),
+    create: (transaction) => ipcRenderer.invoke('client_transactions:create', transaction),
+  },
 
   // Products
   products: {
@@ -40,6 +49,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, product) => ipcRenderer.invoke('products:update', id, product),
     delete: (id) => ipcRenderer.invoke('products:delete', id),
     search: (searchTerm) => ipcRenderer.invoke('products:search', searchTerm),
+    recalculateStock: () => ipcRenderer.invoke('products:recalculateStock'),
+    recalculateAllStock: () => ipcRenderer.invoke('products:recalculateAllStock'),
   },
 
   // Dashboard
@@ -113,5 +124,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Direct silent print to default printer (XPrinter)
   printReceipt: (htmlContent) => ipcRenderer.invoke('print:receipt', htmlContent),
+
+  // Representatives
+  representatives: {
+    getAll: (options) => ipcRenderer.invoke('representatives:getAll', options),
+    getById: (id) => ipcRenderer.invoke('representatives:getById', id),
+    create: (data) => ipcRenderer.invoke('representatives:create', data),
+    update: (id, data) => ipcRenderer.invoke('representatives:update', id, data),
+    delete: (id) => ipcRenderer.invoke('representatives:delete', id),
+    search: (searchTerm) => ipcRenderer.invoke('representatives:search', searchTerm),
+  },
+  services: {
+    getAll: () => ipcRenderer.invoke('services:getAll'),
+    getById: (id) => ipcRenderer.invoke('services:getById', id),
+    create: (data) => ipcRenderer.invoke('services:create', data),
+    update: (id, data) => ipcRenderer.invoke('services:update', id, data),
+    delete: (id) => ipcRenderer.invoke('services:delete', id),
+    search: (searchTerm) => ipcRenderer.invoke('services:search', searchTerm),
+  },
+  serviceCategories: {
+    getAll: () => ipcRenderer.invoke('service_categories:getAll'),
+    getById: (id) => ipcRenderer.invoke('service_categories:getById', id),
+    create: (data) => ipcRenderer.invoke('service_categories:create', data),
+    update: (id, data) => ipcRenderer.invoke('service_categories:update', id, data),
+    delete: (id) => ipcRenderer.invoke('service_categories:delete', id),
+  },
 });
 

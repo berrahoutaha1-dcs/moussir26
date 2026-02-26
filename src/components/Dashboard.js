@@ -10,7 +10,7 @@ import apiService from '../services/api';
 export default function Dashboard() {
   const { t, direction, currency } = useLanguage();
   console.log('Dashboard updated with new stat cards');
-  const [notificationCount, setNotificationCount] = useState(11);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [stats, setStats] = useState([
     {
@@ -66,7 +66,33 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardStats();
+    loadNotificationCount();
+
+    // Keep stats current whenever data changes anywhere in the app
+    const refresh = () => loadDashboardStats();
+    window.addEventListener('clientUpdated', refresh);
+    window.addEventListener('supplierUpdated', refresh);
+    return () => {
+      window.removeEventListener('clientUpdated', refresh);
+      window.removeEventListener('supplierUpdated', refresh);
+    };
   }, [currency, t]);
+
+  const loadNotificationCount = async () => {
+    try {
+      if (window.electronAPI?.batches?.getAll) {
+        const result = await window.electronAPI.batches.getAll();
+        if (result.success && result.data) {
+          const alerts = result.data.filter(
+            (b) => b.alert_quantity > 0 && b.quantity <= b.alert_quantity
+          );
+          setNotificationCount(alerts.length);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading notification count:', err);
+    }
+  };
 
   const loadDashboardStats = async () => {
     try {
@@ -193,6 +219,7 @@ export default function Dashboard() {
       <NotificationsModal
         isOpen={isNotificationsOpen}
         onClose={handleCloseNotifications}
+        onCountChange={(count) => setNotificationCount(count)}
       />
     </div>
   );

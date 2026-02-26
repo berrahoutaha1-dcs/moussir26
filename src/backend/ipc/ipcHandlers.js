@@ -4,6 +4,9 @@ const SupplierController = require('../controllers/SupplierController');
 const ClientController = require('../controllers/ClientController');
 const ProductController = require('../controllers/ProductController');
 const SupplierFinanceController = require('../controllers/SupplierFinanceController');
+const ClientFinanceController = require('../controllers/ClientFinanceController');
+const RepresentativeController = require('../controllers/RepresentativeController');
+const ServiceController = require('../controllers/ServiceController');
 const RequestLogger = require('../middleware/RequestLogger');
 const ErrorMiddleware = require('../middleware/ErrorMiddleware');
 const { IPC_CHANNELS } = require('../constants');
@@ -24,6 +27,9 @@ function setupIpcHandlers() {
   const clientController = new ClientController(db);
   const productController = new ProductController(db);
   const supplierFinanceController = new SupplierFinanceController(db);
+  const clientFinanceController = new ClientFinanceController(db);
+  const representativeController = new RepresentativeController(db);
+  const serviceController = new ServiceController(db);
   // const clientController = new ClientController(db);
 
   // ============================================
@@ -148,6 +154,24 @@ function setupIpcHandlers() {
         async (event, searchTerm) => await productController.search(event, searchTerm)
       ),
       'ProductController.search'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PRODUCTS.RECALCULATE_STOCK,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PRODUCTS.RECALCULATE_STOCK,
+        async (event) => await productController.recalculateStoreStock(event)
+      ),
+      'ProductController.recalculateStoreStock'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PRODUCTS.RECALCULATE_ALL_STOCK,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PRODUCTS.RECALCULATE_ALL_STOCK,
+        async (event) => await productController.recalculateAllStock(event)
+      ),
+      'ProductController.recalculateAllStock'
     )
   );
 
@@ -434,9 +458,11 @@ function setupIpcHandlers() {
           b.product_id,
           b.designation,
           b.quantity,
-          COALESCE(b.expiry_date, p.expiry_date) AS expiry_date,
+          COALESCE(NULLIF(b.expiry_date, ''), p.expiry_date) AS expiry_date,
+          COALESCE(NULLIF(b.production_date, ''), p.production_date) AS production_date,
           b.reception_date,
-          b.alert_date,
+          COALESCE(NULLIF(b.alert_date, ''), p.alert_date) AS alert_date,
+          COALESCE(NULLIF(b.alert_quantity, 0), p.alert_quantity) AS alert_quantity,
           b.created_at,
           b.updated_at
         FROM batches b
@@ -459,9 +485,11 @@ function setupIpcHandlers() {
           b.product_id,
           b.designation,
           b.quantity,
-          COALESCE(b.expiry_date, p.expiry_date) AS expiry_date,
+          COALESCE(NULLIF(b.expiry_date, ''), p.expiry_date) AS expiry_date,
+          COALESCE(NULLIF(b.production_date, ''), p.production_date) AS production_date,
           b.reception_date,
-          b.alert_date,
+          COALESCE(NULLIF(b.alert_date, ''), p.alert_date) AS alert_date,
+          COALESCE(NULLIF(b.alert_quantity, 0), p.alert_quantity) AS alert_quantity,
           b.created_at,
           b.updated_at
         FROM batches b
@@ -478,7 +506,7 @@ function setupIpcHandlers() {
   // CREATE batch
   ipcMain.handle(IPC_CHANNELS.BATCHES.CREATE, async (event, batchData) => {
     try {
-      const { num_lot, product_id, designation, quantity, expiry_date, reception_date, alert_date } = batchData;
+      const { num_lot, product_id, designation, quantity, expiry_date, production_date, reception_date, alert_date, alert_quantity } = batchData;
       if (!num_lot || !num_lot.trim()) return { success: false, error: 'num_lot is required' };
       if (!designation || !designation.trim()) return { success: false, error: 'designation is required' };
 
@@ -487,10 +515,15 @@ function setupIpcHandlers() {
         db.prepare(`UPDATE products SET expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(expiry_date, product_id);
       }
+      // Sync alert_quantity back to the product too
+      if (product_id && alert_quantity !== undefined && alert_quantity !== null) {
+        db.prepare(`UPDATE products SET alert_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(alert_quantity, product_id);
+      }
 
       const stmt = db.prepare(`
-        INSERT INTO batches (num_lot, product_id, designation, quantity, expiry_date, reception_date, alert_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO batches (num_lot, product_id, designation, quantity, expiry_date, production_date, reception_date, alert_date, alert_quantity)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         num_lot.trim(),
@@ -498,8 +531,10 @@ function setupIpcHandlers() {
         designation.trim(),
         quantity || 0,
         expiry_date || null,
+        production_date || null,
         reception_date || null,
-        alert_date || null
+        alert_date || null,
+        alert_quantity || 0
       );
       const newRow = db.prepare('SELECT * FROM batches WHERE id = ?').get(result.lastInsertRowid);
       return { success: true, data: newRow };
@@ -511,7 +546,7 @@ function setupIpcHandlers() {
   // UPDATE batch
   ipcMain.handle(IPC_CHANNELS.BATCHES.UPDATE, async (event, id, batchData) => {
     try {
-      const { num_lot, product_id, designation, quantity, expiry_date, reception_date, alert_date } = batchData;
+      const { num_lot, product_id, designation, quantity, expiry_date, production_date, reception_date, alert_date, alert_quantity } = batchData;
       if (!num_lot || !num_lot.trim()) return { success: false, error: 'num_lot is required' };
       if (!designation || !designation.trim()) return { success: false, error: 'designation is required' };
 
@@ -520,11 +555,16 @@ function setupIpcHandlers() {
         db.prepare(`UPDATE products SET expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(expiry_date, product_id);
       }
+      // Sync alert_quantity back to the product
+      if (product_id && alert_quantity !== undefined && alert_quantity !== null) {
+        db.prepare(`UPDATE products SET alert_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          .run(alert_quantity, product_id);
+      }
 
       const stmt = db.prepare(`
         UPDATE batches
         SET num_lot = ?, product_id = ?, designation = ?, quantity = ?,
-            expiry_date = ?, reception_date = ?, alert_date = ?,
+            expiry_date = ?, production_date = ?, reception_date = ?, alert_date = ?, alert_quantity = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
@@ -534,8 +574,10 @@ function setupIpcHandlers() {
         designation.trim(),
         quantity || 0,
         expiry_date || null,
+        production_date || null,
         reception_date || null,
         alert_date || null,
+        alert_quantity || 0,
         id
       );
       if (result.changes === 0) return { success: false, error: 'Batch not found' };
@@ -568,9 +610,10 @@ function setupIpcHandlers() {
           b.product_id,
           b.designation,
           b.quantity,
-          COALESCE(b.expiry_date, p.expiry_date) AS expiry_date,
+          COALESCE(NULLIF(b.expiry_date, ''), p.expiry_date) AS expiry_date,
+          COALESCE(NULLIF(b.production_date, ''), p.production_date) AS production_date,
           b.reception_date,
-          b.alert_date
+          COALESCE(NULLIF(b.alert_date, ''), p.alert_date) AS alert_date
         FROM batches b
         LEFT JOIN products p ON b.product_id = p.id
         WHERE b.num_lot LIKE ? OR b.designation LIKE ?
@@ -642,6 +685,31 @@ function setupIpcHandlers() {
   );
 
   // ============================================
+  // CLIENT FINANCE ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.CLIENT_PAYMENTS.CREATE,
+    ErrorMiddleware.wrap(
+      async (event, data) => await clientFinanceController.createPayment(event, data),
+      'ClientFinanceController.createPayment'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.CLIENT_PAYMENTS.GET_BY_CLIENT,
+    ErrorMiddleware.wrap(
+      async (event, clientId) => await clientFinanceController.getPaymentsByClient(event, clientId),
+      'ClientFinanceController.getPaymentsByClient'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.CLIENT_TRANSACTIONS.GET_BY_CLIENT,
+    ErrorMiddleware.wrap(
+      async (event, clientId) => await clientFinanceController.getTransactionsByClient(event, clientId),
+      'ClientFinanceController.getTransactionsByClient'
+    )
+  );
+
+  // ============================================
   // STOREHOUSES & SHELVES ROUTES
   // ============================================
 
@@ -707,6 +775,213 @@ function setupIpcHandlers() {
     try {
       db.prepare('DELETE FROM shelves WHERE id = ?').run(id);
       return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ============================================
+  // REPRESENTATIVES ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.REPRESENTATIVES.GET_ALL,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.REPRESENTATIVES.GET_ALL,
+        async (event, options) => await representativeController.getAll(event, options)
+      ),
+      'RepresentativeController.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.REPRESENTATIVES.GET_BY_ID,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.REPRESENTATIVES.GET_BY_ID,
+        async (event, id) => await representativeController.getById(event, id)
+      ),
+      'RepresentativeController.getById'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.REPRESENTATIVES.CREATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.REPRESENTATIVES.CREATE,
+        async (event, data) => await representativeController.create(event, data)
+      ),
+      'RepresentativeController.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.REPRESENTATIVES.UPDATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.REPRESENTATIVES.UPDATE,
+        async (event, id, data) => await representativeController.update(event, id, data)
+      ),
+      'RepresentativeController.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.REPRESENTATIVES.DELETE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.REPRESENTATIVES.DELETE,
+        async (event, id) => await representativeController.delete(event, id)
+      ),
+      'RepresentativeController.delete'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.REPRESENTATIVES.SEARCH,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.REPRESENTATIVES.SEARCH,
+        async (event, searchTerm) => await representativeController.search(event, searchTerm)
+      ),
+      'RepresentativeController.search'
+    )
+  );
+
+  // ============================================
+  // SERVICE ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.SERVICES.GET_ALL,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICES.GET_ALL,
+        async (event) => await serviceController.getAll(event)
+      ),
+      'ServiceController.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICES.GET_BY_ID,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICES.GET_BY_ID,
+        async (event, id) => await serviceController.getById(event, id)
+      ),
+      'ServiceController.getById'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICES.CREATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICES.CREATE,
+        async (event, data) => await serviceController.create(event, data)
+      ),
+      'ServiceController.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICES.UPDATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICES.UPDATE,
+        async (event, id, data) => await serviceController.update(event, id, data)
+      ),
+      'ServiceController.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICES.DELETE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICES.DELETE,
+        async (event, id) => await serviceController.delete(event, id)
+      ),
+      'ServiceController.delete'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICES.SEARCH,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICES.SEARCH,
+        async (event, searchTerm) => await serviceController.search(event, searchTerm)
+      ),
+      'ServiceController.search'
+    )
+  );
+
+  // ============================================
+  // SERVICE CATEGORY ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.SERVICE_CATEGORIES.GET_ALL,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICE_CATEGORIES.GET_ALL,
+        async (event) => await serviceController.getAllCategories(event)
+      ),
+      'ServiceController.getAllCategories'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICE_CATEGORIES.CREATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICE_CATEGORIES.CREATE,
+        async (event, data) => await serviceController.createCategory(event, data)
+      ),
+      'ServiceController.createCategory'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICE_CATEGORIES.UPDATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICE_CATEGORIES.UPDATE,
+        async (event, id, data) => await serviceController.updateCategory(event, id, data)
+      ),
+      'ServiceController.updateCategory'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SERVICE_CATEGORIES.DELETE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.SERVICE_CATEGORIES.DELETE,
+        async (event, id) => await serviceController.deleteCategory(event, id)
+      ),
+      'ServiceController.deleteCategory'
+    )
+  );
+
+  // ============================================
+  // DASHBOARD ROUTES
+  // ============================================
+
+  ipcMain.handle('db:dashboard:getStats', async () => {
+    try {
+      // Total clients
+      const totalCustomers = db.prepare('SELECT COUNT(*) as cnt FROM clients').get()?.cnt || 0;
+
+      // Total suppliers
+      const totalSuppliers = db.prepare('SELECT COUNT(*) as cnt FROM suppliers').get()?.cnt || 0;
+
+      // Total client debts: sum of solde where type_solde = 'negatif' (client owes us nothing; negative solde means debt)
+      // 'negatif' means the client's balance is negative (they owe money)
+      const clientDebtRow = db.prepare(
+        "SELECT COALESCE(SUM(solde), 0) as total FROM clients WHERE type_solde = 'negatif'"
+      ).get();
+      const totalDebts = Math.abs(clientDebtRow?.total || 0);
+
+      // Total supplier debts: sum of positive solde values (we owe suppliers)
+      const supplierDebtRow = db.prepare(
+        'SELECT COALESCE(SUM(CASE WHEN solde > 0 THEN solde ELSE 0 END), 0) as total FROM suppliers'
+      ).get();
+      const totalSuppliersDebts = supplierDebtRow?.total || 0;
+
+      return {
+        success: true,
+        data: {
+          totalCustomers,
+          totalSuppliers,
+          totalDebts,
+          totalSuppliersDebts,
+          todayPurchases: 0,
+          todaySales: 0,
+          totalExpenses: 0,
+        }
+      };
+    } catch (error) {
+      logger.error('Dashboard stats error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:dashboard:getSalesChart', async (event, period) => {
+    try {
+      return { success: true, data: [] };
     } catch (error) {
       return { success: false, error: error.message };
     }

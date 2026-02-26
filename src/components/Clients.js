@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   UserCheck,
@@ -14,6 +14,7 @@ import ClientListModal from './ClientListModal';
 import AddClientModal from './AddClientModal';
 import RepresentantsListModal from './RepresentantsListModal';
 import ClientSituationModal from './ClientSituationModal';
+import apiService from '../services/api';
 
 export default function Clients() {
   const { direction, t } = useLanguage();
@@ -22,6 +23,41 @@ export default function Clients() {
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isRepresentantsListModalOpen, setIsRepresentantsListModalOpen] = useState(false);
   const [isClientSituationModalOpen, setIsClientSituationModalOpen] = useState(false);
+  const [representativeCount, setRepresentativeCount] = useState(null); // null = loading
+  const [clientCount, setClientCount] = useState(null);                 // null = loading
+
+  const fetchStats = async () => {
+    try {
+      // Fetch representatives
+      const repResult = await window.electronAPI.representatives.getAll();
+      if (repResult.success) {
+        setRepresentativeCount(repResult.data.length);
+      }
+
+      // Fetch clients
+      const clientResult = await apiService.getAllClients();
+      if (clientResult.success) {
+        setClientCount(clientResult.data.length);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+
+    // Re-fetch whenever any related data changes
+    const onClientUpdate = () => fetchStats();
+    const onRepUpdate = () => fetchStats();
+
+    window.addEventListener('clientUpdated', onClientUpdate);
+    window.addEventListener('representativeUpdated', onRepUpdate);
+    return () => {
+      window.removeEventListener('clientUpdated', onClientUpdate);
+      window.removeEventListener('representativeUpdated', onRepUpdate);
+    };
+  }, []);
 
   const clientButtons = [
     {
@@ -106,26 +142,38 @@ export default function Clients() {
           </div>
 
           <div className={`flex ${direction === 'rtl' ? 'flex-row-reverse space-x-reverse' : 'space-x-4'} space-x-4`}>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+            {/* Representatives counter */}
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 min-w-[140px]">
               <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse space-x-reverse' : 'space-x-3'} space-x-3`}>
                 <div className="bg-emerald-100 p-2 rounded-lg">
                   <UserCheck className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-600">{t('clients.representatives') || 'Représentants'}</p>
-                  <p className="font-semibold text-slate-900">24</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">
+                    {t('clients.representatives') || 'Representatives List'}
+                  </p>
+                  {representativeCount === null ? (
+                    <div className="h-5 w-8 mt-1 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-xl font-bold text-slate-900">{representativeCount.toLocaleString()}</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+            {/* Total clients counter */}
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 min-w-[140px]">
               <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse space-x-reverse' : 'space-x-3'} space-x-3`}>
                 <div className="bg-blue-100 p-2 rounded-lg">
                   <Users className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-600">Total Clients</p>
-                  <p className="font-semibold text-slate-900">1,247</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Total Clients</p>
+                  {clientCount === null ? (
+                    <div className="h-5 w-8 mt-1 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-xl font-bold text-slate-900">{clientCount.toLocaleString()}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -143,16 +191,16 @@ export default function Clients() {
             <Card
               key={button.id}
               className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg cursor-pointer border-2 ${isActive
-                  ? `${button.borderColor} ${button.bgLight}`
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                ? `${button.borderColor} ${button.bgLight}`
+                : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               onClick={() => handleButtonClick(button.id)}
             >
               <div className="p-6">
                 {/* Icon Container */}
                 <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 transition-all duration-300 ${isActive
-                    ? `${button.color.split(' ')[0]} text-white`
-                    : `${button.bgLight} ${button.textColor}`
+                  ? `${button.color.split(' ')[0]} text-white`
+                  : `${button.bgLight} ${button.textColor}`
                   }`}>
                   <IconComponent className="w-7 h-7" />
                 </div>
@@ -193,19 +241,19 @@ export default function Clients() {
       {/* Client List Modal */}
       <ClientListModal
         isOpen={isClientListModalOpen}
-        onClose={() => setIsClientListModalOpen(false)}
+        onClose={() => { setIsClientListModalOpen(false); fetchStats(); }}
       />
 
       {/* Add Client Modal */}
       <AddClientModal
         isOpen={isAddClientModalOpen}
-        onClose={() => setIsAddClientModalOpen(false)}
+        onClose={() => { setIsAddClientModalOpen(false); fetchStats(); }}
       />
 
       {/* Representants List Modal */}
       <RepresentantsListModal
         isOpen={isRepresentantsListModalOpen}
-        onClose={() => setIsRepresentantsListModalOpen(false)}
+        onClose={() => { setIsRepresentantsListModalOpen(false); fetchStats(); }}
       />
 
       {/* Client Situation Modal */}

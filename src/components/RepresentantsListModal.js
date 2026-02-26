@@ -1,142 +1,161 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Users, Search, Plus, Edit, Trash2, Mail, Phone, User } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { useLanguage } from '../contexts/LanguageContext';
+import { toast } from 'sonner';
 
-export default function RepresentantsListModal({ 
-  isOpen, 
-  onClose, 
-  onSelectRepresentant 
+export default function RepresentantsListModal({
+  isOpen,
+  onClose,
+  onSelectRepresentant
 }) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRepresentant, setEditingRepresentant] = useState(null);
+  const [representants, setRepresentants] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
-    numero: '',
+    telephone: '',
     email: ''
   });
   const [errors, setErrors] = useState({});
 
-  // Mock data for représentants
-  const [representants, setRepresentants] = useState([
-    {
-      id: '1',
-      nom: 'Benali',
-      prenom: 'Ahmed',
-      numero: '+213 555 123 456',
-      email: 'ahmed.benali@logisoft.dz'
-    },
-    {
-      id: '2',
-      nom: 'Larbi',
-      prenom: 'Fatima',
-      numero: '+213 555 234 567',
-      email: 'fatima.larbi@logisoft.dz'
-    },
-    {
-      id: '3',
-      nom: 'Khelil',
-      prenom: 'Omar',
-      numero: '+213 555 345 678',
-      email: 'omar.khelil@logisoft.dz'
-    },
-    {
-      id: '4',
-      nom: 'Meziane',
-      prenom: 'Salima',
-      numero: '+213 555 456 789',
-      email: 'salima.meziane@logisoft.dz'
+  const fetchRepresentants = async () => {
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.representatives.getAll();
+      if (result.success) {
+        setRepresentants(result.data);
+      } else {
+        toast.error(result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching representatives:', error);
+      toast.error('Erreur lors du chargement des représentants');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchRepresentants();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (isOpen) {
+        handleSearch();
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) {
+      fetchRepresentants();
+      return;
+    }
+    try {
+      const result = await window.electronAPI.representatives.search(searchTerm);
+      if (result.success) {
+        setRepresentants(result.data);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+    }
+  };
 
   if (!isOpen) return null;
 
-  const filteredRepresentants = representants.filter(rep =>
-    rep.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rep.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rep.numero.includes(searchTerm) ||
-    rep.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.nom.trim()) {
       newErrors.nom = language === 'ar' ? 'الاسم مطلوب' : 'Le nom est requis';
     }
-    
+
     if (!formData.prenom.trim()) {
       newErrors.prenom = language === 'ar' ? 'اللقب مطلوب' : 'Le prénom est requis';
-    }
-    
-    if (!formData.numero.trim()) {
-      newErrors.numero = language === 'ar' ? 'رقم الهاتف مطلوب' : 'Le numéro est requis';
-    }
-    
-    if (!formData.email.trim()) {
-      newErrors.email = language === 'ar' ? 'البريد الإلكتروني مطلوب' : 'L\'email est requis';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = language === 'ar' ? 'البريد الإلكتروني غير صحيح' : 'Email invalide';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSaveRepresentant = () => {
+  const handleSaveRepresentant = async () => {
     if (!validateForm()) return;
 
-    if (editingRepresentant) {
-      // Update existing représentant
-      setRepresentants(prev => prev.map(rep => 
-        rep.id === editingRepresentant.id 
-          ? { ...rep, ...formData }
-          : rep
-      ));
-    } else {
-      // Add new représentant
-      const newRepresentant = {
-        id: Date.now().toString(),
-        ...formData
-      };
-      setRepresentants(prev => [...prev, newRepresentant]);
-    }
+    try {
+      let result;
+      if (editingRepresentant) {
+        result = await window.electronAPI.representatives.update(editingRepresentant.id, formData);
+      } else {
+        result = await window.electronAPI.representatives.create(formData);
+      }
 
-    // Reset form
-    setFormData({ nom: '', prenom: '', numero: '', email: '' });
-    setShowAddForm(false);
-    setEditingRepresentant(null);
-    setErrors({});
+      if (result.success) {
+        toast.success(result.message || (editingRepresentant ? 'Représentant mis à jour' : 'Représentant créé'));
+        fetchRepresentants();
+        handleCancelForm();
+        // Notify parent pages (e.g. Clients.js stats)
+        window.dispatchEvent(new CustomEvent('representativeUpdated'));
+      } else {
+        toast.error(result.error);
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error(error.message || 'Erreur lors de l\'enregistrement');
+    }
   };
 
   const handleEditRepresentant = (representant) => {
     setFormData({
       nom: representant.nom,
       prenom: representant.prenom,
-      numero: representant.numero,
-      email: representant.email
+      telephone: representant.telephone || '',
+      email: representant.email || ''
     });
     setEditingRepresentant(representant);
     setShowAddForm(true);
     setErrors({});
   };
 
-  const handleDeleteRepresentant = (id) => {
-    setRepresentants(prev => prev.filter(rep => rep.id !== id));
+  const handleDeleteRepresentant = async (id) => {
+    if (!window.confirm(language === 'ar' ? 'هل أنت متأكد من الحذف؟' : 'Êtes-vous sûr de vouloir supprimer ce représentant ?')) {
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.representatives.delete(id);
+      if (result.success) {
+        toast.success('Représentant supprimé');
+        fetchRepresentants();
+        // Notify parent pages (e.g. Clients.js stats)
+        window.dispatchEvent(new CustomEvent('representativeUpdated'));
+      } else {
+        toast.error(result.error);
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   const handleCancelForm = () => {
-    setFormData({ nom: '', prenom: '', numero: '', email: '' });
+    setFormData({ nom: '', prenom: '', telephone: '', email: '' });
     setShowAddForm(false);
     setEditingRepresentant(null);
     setErrors({});
   };
 
-  const handleSelectRepresentant = (representant) => {
+  const handleSelect = (representant) => {
     if (onSelectRepresentant) {
       onSelectRepresentant(representant);
       onClose();
@@ -145,7 +164,7 @@ export default function RepresentantsListModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div 
+      <div
         className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden"
         style={{ border: '2px solid #1b1b1b' }}
       >
@@ -193,7 +212,7 @@ export default function RepresentantsListModal({
             <div className="bg-white rounded-lg p-6 border border-gray-200 mb-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                 <User className="w-5 h-5" />
-                {editingRepresentant 
+                {editingRepresentant
                   ? (language === 'ar' ? 'تعديل المندوب' : 'Modifier le Représentant')
                   : (language === 'ar' ? 'إضافة مندوب جديد' : 'Nouveau Représentant')
                 }
@@ -238,12 +257,12 @@ export default function RepresentantsListModal({
                   </label>
                   <Input
                     type="tel"
-                    value={formData.numero}
-                    onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                    value={formData.telephone}
+                    onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
                     placeholder="+213 555 123 456"
-                    className={errors.numero ? 'border-red-500' : ''}
+                    className={errors.telephone ? 'border-red-500' : ''}
                   />
-                  {errors.numero && <p className="text-red-500 text-xs mt-1">{errors.numero}</p>}
+                  {errors.telephone && <p className="text-red-500 text-xs mt-1">{errors.telephone}</p>}
                 </div>
 
                 {/* Email */}
@@ -274,7 +293,7 @@ export default function RepresentantsListModal({
                   onClick={handleSaveRepresentant}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {editingRepresentant 
+                  {editingRepresentant
                     ? (language === 'ar' ? 'تحديث' : 'Modifier')
                     : (language === 'ar' ? 'حفظ' : 'Enregistrer')
                   }
@@ -297,16 +316,23 @@ export default function RepresentantsListModal({
 
             {/* Table Body */}
             <div className="divide-y divide-gray-200">
-              {filteredRepresentants.length === 0 ? (
+              {loading ? (
+                <div className="px-6 py-8 text-center text-gray-500">
+                  <div className="flex justify-center items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>{language === 'ar' ? 'جاري التحميل...' : 'Chargement...'}</span>
+                  </div>
+                </div>
+              ) : representants.length === 0 ? (
                 <div className="px-6 py-8 text-center text-gray-500">
                   {language === 'ar' ? 'لا توجد نتائج' : 'Aucun résultat trouvé'}
                 </div>
               ) : (
-                filteredRepresentants.map((representant) => (
-                  <div 
-                    key={representant.id} 
+                representants.map((representant) => (
+                  <div
+                    key={representant.id}
                     className="px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => onSelectRepresentant && handleSelectRepresentant(representant)}
+                    onClick={() => handleSelect(representant)}
                   >
                     <div className="grid grid-cols-12 gap-4 items-center">
                       {/* Nom Complet */}
@@ -327,7 +353,7 @@ export default function RepresentantsListModal({
                       <div className="col-span-3">
                         <div className="flex items-center gap-2 text-gray-600">
                           <Phone className="w-4 h-4" />
-                          <span>{representant.numero}</span>
+                          <span>{representant.telephone || '-'}</span>
                         </div>
                       </div>
 
@@ -335,7 +361,7 @@ export default function RepresentantsListModal({
                       <div className="col-span-4">
                         <div className="flex items-center gap-2 text-gray-600">
                           <Mail className="w-4 h-4" />
-                          <span className="truncate">{representant.email}</span>
+                          <span className="truncate">{representant.email || '-'}</span>
                         </div>
                       </div>
 
@@ -373,7 +399,7 @@ export default function RepresentantsListModal({
 
           {/* Stats */}
           <div className="mt-4 text-sm text-gray-500 text-center">
-            {filteredRepresentants.length} {language === 'ar' ? 'مندوب' : 'représentant(s)'} 
+            {representants.length} {language === 'ar' ? 'مندوب' : 'représentant(s)'}
             {searchTerm && (
               <span>
                 {' '} - {language === 'ar' ? 'تم العثور على' : 'trouvé(s) pour'} "{searchTerm}"
@@ -383,18 +409,16 @@ export default function RepresentantsListModal({
         </div>
 
         {/* Footer */}
-        {!onSelectRepresentant && (
-          <div className="bg-white border-t border-gray-200 p-4">
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                onClick={onClose}
-              >
-                {language === 'ar' ? 'إغلاق' : 'Fermer'}
-              </Button>
-            </div>
+        <div className="bg-white border-t border-gray-200 p-4">
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={onClose}
+            >
+              {language === 'ar' ? 'إغلاق' : 'Fermer'}
+            </Button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

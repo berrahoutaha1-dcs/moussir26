@@ -7,10 +7,9 @@ import SupplierPaymentModal from './SupplierPaymentModal';
 import SupplierLedgerModal from './SupplierLedgerModal';
 import AddSupplierModal from './AddSupplierModal';
 import ImportSupplierModal from './ImportSupplierModal';
+import PrintSupplierListModal from './PrintSupplierListModal';
 import { toast } from 'sonner';
 import apiService from '../services/api';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 export default function SupplierListModal({ isOpen, onClose }) {
   const { language, direction } = useLanguage();
@@ -24,6 +23,7 @@ export default function SupplierListModal({ isOpen, onClose }) {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedSuppliers, setSelectedSuppliers] = useState([]);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -257,46 +257,7 @@ export default function SupplierListModal({ isOpen, onClose }) {
   };
 
   const handlePrintList = () => {
-    try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-
-      doc.setFontSize(20);
-      doc.text(language === 'ar' ? 'قائمة الموردين' : 'Liste des Fournisseurs', pageWidth / 2, 15, { align: 'center' });
-
-      const tableData = filteredSuppliers.map(s => [
-        s.nomEntreprise,
-        s.codeSupplier,
-        s.telephone,
-        s.email,
-        s.categorieActivite,
-        s.solde.toFixed(2) + ' DA'
-      ]);
-
-      autoTable(doc, {
-        head: [[
-          language === 'ar' ? 'الشركة' : 'Entreprise',
-          'Code',
-          language === 'ar' ? 'الهاتف' : 'Téléphone',
-          'Email',
-          language === 'ar' ? 'الفئة' : 'Catégorie',
-          language === 'ar' ? 'الرصيد' : 'Solde'
-        ]],
-        body: tableData,
-        startY: 25,
-        styles: { fontSize: 8 },
-        headStyles: { fillStyle: [27, 27, 27] }
-      });
-
-      doc.autoPrint();
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-      iframe.src = doc.output('bloburl');
-    } catch (error) {
-      console.error('Print list error:', error);
-      toast.error(language === 'ar' ? 'خطأ في الطباعة' : 'Erreur d\'impression');
-    }
+    setIsPrintPreviewOpen(true);
   };
 
   if (!isOpen) return null;
@@ -572,6 +533,14 @@ export default function SupplierListModal({ isOpen, onClose }) {
           loadSuppliers();
         }}
         supplier={selectedSupplier}
+      />
+
+      {/* Print preview for the supplier list */}
+      <PrintSupplierListModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        suppliers={filteredSuppliers}
+        language={language}
       />
     </div>
   );

@@ -168,23 +168,29 @@ export default function ClientListModal({ isOpen, onClose }) {
 
   const handleExport = () => {
     try {
-      const dataToExport = filteredAndSortedClients.map(client => ({
-        'name': client.prenom || '',
-        'family name': client.nom || '',
-        'Activity': client.activite || '',
-        'Representant': client.representant || '',
-        'Adresse': client.adresse || '',
-        'Phone Number 01': client.telephone01 || client.numero || '',
-        'Phone Number 02': client.telephone02 || '',
-        'Email': client.email || '',
-        'RC': client.rc || '',
-        'NIF': client.nif || '',
-        'NIS': client.nis || '',
-        'AI': client.ai || '',
-        'Balance Paid': client.soldPaye || 0,
-        'Debt': client.dette || (client.solde < 0 ? Math.abs(client.solde) : 0),
-        'total': client.solde || 0
-      }));
+      const dataToExport = filteredAndSortedClients.map(client => {
+        const soldeValue = Math.abs(parseFloat(client.solde) || 0);
+        const typeSolde = client.typeSolde || 'positif';
+        const isNegatif = typeSolde === 'negatif';
+
+        return {
+          'name': client.prenom || '',
+          'family name': client.nom || '',
+          'Activity': client.activite || '',
+          'Representant': client.representant || '',
+          'Adresse': client.adresse || '',
+          'Phone Number 01': client.telephone || '',
+          'Phone Number 02': client.telephone02 || '',
+          'Email': client.email || '',
+          'RC': client.rc || '',
+          'NIF': client.nif || '',
+          'NIS': client.nis || '',
+          'AI': client.ai || '',
+          'Balance Paid': !isNegatif ? soldeValue : 0,
+          'Debt': isNegatif ? soldeValue : 0,
+          'total': isNegatif ? -soldeValue : soldeValue
+        };
+      });
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
@@ -283,10 +289,10 @@ export default function ClientListModal({ isOpen, onClose }) {
       ];
 
       const tableRows = filteredAndSortedClients.map(client => [
-        `${client.prenom} ${client.nom}`,
-        client.numero,
+        client.nomComplet || `${client.prenom} ${client.nom}`.trim(),
+        client.telephone,
         client.representant,
-        `${client.solde.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} DA`,
+        `${(client.solde || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} DA`,
         client.ville
       ]);
 
@@ -602,7 +608,7 @@ export default function ClientListModal({ isOpen, onClose }) {
                     </div>
                   </td>
                   <td className="p-3">
-                    <span className="text-sm text-gray-900">{client.telephone}</span>
+                    <span className="text-sm text-gray-900">{client.telephone || ''}</span>
                   </td>
                   <td className="p-3">
                     <span className="text-sm text-gray-900">{client.email}</span>

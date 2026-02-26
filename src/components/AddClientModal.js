@@ -59,25 +59,56 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
   React.useEffect(() => {
     if (isOpen) {
       if (initialData) {
+        // Extensive fallback for all properties
+        const nomVal = initialData.nom || initialData.nom_famille || '';
+        const prenomVal = initialData.prenom || '';
+        const nomCompletVal = initialData.nomComplet || initialData.nom_complet || '';
+        const telephone01Val = initialData.telephone || initialData.telephone01 || initialData.numero || initialData.telephone_01 || '';
+        const telephone02Val = initialData.telephone02 || initialData.telephone_02 || '';
+        const activiteVal = initialData.activite || initialData.activité || '';
+        const representantIdVal = initialData.representantId || initialData.representant_id || (typeof initialData.representant === 'number' ? initialData.representant : '');
+
+        let nom = nomVal;
+        let prenom = prenomVal;
+
+        // Fallback for nom/prenom if they are empty
+        if (!nom && !prenom && nomCompletVal) {
+          const parts = nomCompletVal.trim().split(' ');
+          if (parts.length > 1) {
+            prenom = parts[0];
+            nom = parts.slice(1).join(' ');
+          } else {
+            nom = parts[0];
+          }
+        }
+
+        const montantTotal = (initialData.montantTotal !== undefined) ? initialData.montantTotal : (initialData.montant_total || 0);
+        const montantPaye = (initialData.montantPaye !== undefined) ? initialData.montantPaye : (initialData.montant_paye || 0);
+        const solde = (initialData.solde !== undefined && initialData.solde !== null) ? initialData.solde : (initialData.balance || 0);
+        const soldeValue = Math.abs(parseFloat(solde) || 0);
+        const typeSolde = initialData.typeSolde || initialData.type_solde || 'positif';
+        const isNegatif = typeSolde === 'negatif' || solde < 0;
+
         setFormData({
-          reference: initialData.id ? `CLT-${initialData.id}` : '',
-          nom: initialData.nom || '',
-          prenom: initialData.prenom || '',
-          activite: initialData.activite || '',
-          representant: initialData.representantId || '', // Handle mapping if needed
+          reference: initialData.codeClient || initialData.code_client || (initialData.id ? `CLT-${initialData.id}` : ''),
+          nom: nom,
+          prenom: prenom,
+          activite: activiteVal,
+          representant: representantIdVal,
           adresse: initialData.adresse || '',
-          telephone01: initialData.numero || initialData.telephone01 || '',
-          telephone02: initialData.telephone02 || '',
+          telephone01: telephone01Val,
+          telephone02: telephone02Val,
           email: initialData.email || '',
           rc: initialData.rc || '',
           nif: initialData.nif || '',
           nis: initialData.nis || '',
-          ai: initialData.ai || '',
-          soldPaye: initialData.soldPaye || 0,
-          dette: initialData.dette || (initialData.solde < 0 ? Math.abs(initialData.solde) : 0),
+          ai: initialData.ai,
+          soldPaye: montantPaye || (!isNegatif ? soldeValue : 0),
+          dette: montantTotal || (isNegatif ? soldeValue : 0),
           photo: null
         });
-        setPhotoPreview(null); // Or use photo from data if available
+        setPhotoPreview(initialData.photo ? `app-img://${initialData.photo}` : null);
+
       } else {
         setFormData({
           reference: '',
@@ -105,33 +136,22 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
 
   const [errors, setErrors] = useState({});
 
-  // Mock representatives data
-  const mockRepresentatives = [
-    {
-      id: '1',
-      nom: 'Kaci',
-      prenom: 'Mohamed',
-      email: 'mohamed.kaci@logisoft.dz',
-      telephone: '+213 555 123 456',
-      zone: 'Alger Centre'
-    },
-    {
-      id: '2',
-      nom: 'Meziane',
-      prenom: 'Salim',
-      email: 'salim.meziane@logisoft.dz',
-      telephone: '+213 555 789 012',
-      zone: 'Oran'
-    },
-    {
-      id: '3',
-      nom: 'Boumediene',
-      prenom: 'Rachid',
-      email: 'rachid.boumediene@logisoft.dz',
-      telephone: '+213 555 345 678',
-      zone: 'Constantine'
+  const [representants, setRepresentants] = useState([]);
+
+  const fetchRepresentants = async () => {
+    try {
+      const result = await window.electronAPI.representatives.getAll();
+      if (result.success) {
+        setRepresentants(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching representatives:', error);
     }
-  ];
+  };
+
+  React.useEffect(() => {
+    fetchRepresentants();
+  }, []);
 
   if (!isOpen) return null;
 
@@ -211,10 +231,6 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
       newErrors.email = language === 'ar' ? 'بريد إلكتروني غير صالح' : 'Email invalide';
     }
 
-    if (!formData.representant) {
-      newErrors.representant = language === 'ar' ? 'المندوب مطلوب' : 'Représentant requis';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -232,6 +248,8 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
 
       const clientData = {
         nomComplet: `${formData.prenom} ${formData.nom}`.trim(),
+        nom: formData.nom,
+        prenom: formData.prenom,
         codeClient: ref,
         telephone: formData.telephone01,
         telephone02: formData.telephone02,
@@ -239,13 +257,17 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
         adresse: formData.adresse,
         activite: formData.activite,
         representant: selectedRepresentative ? `${selectedRepresentative.prenom} ${selectedRepresentative.nom}` : '',
+        representantId: formData.representant,
         rc: formData.rc,
         nif: formData.nif,
         nis: formData.nis,
         ai: formData.ai,
+        montantTotal: formData.dette || 0,
+        montantPaye: formData.soldPaye || 0,
         solde: Math.abs(totalBalance),
         typeSolde: totalBalance >= 0 ? 'negatif' : 'positif',
-        statut: 'actif'
+        statut: 'actif',
+        photo: photoPreview
       };
 
       let result;
@@ -275,12 +297,12 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
     }
   };
 
-  const filteredRepresentatives = mockRepresentatives.filter(rep =>
+  const filteredRepresentatives = representants.filter(rep =>
     `${rep.prenom} ${rep.nom}`.toLowerCase().includes(representantSearch.toLowerCase()) ||
-    rep.zone.toLowerCase().includes(representantSearch.toLowerCase())
+    (rep.email && rep.email.toLowerCase().includes(representantSearch.toLowerCase()))
   );
 
-  const selectedRepresentative = mockRepresentatives.find(rep => rep.id === formData.representant);
+  const selectedRepresentative = representants.find(rep => rep.id === formData.representant);
 
   const totalBalance = (formData.dette || 0) - (formData.soldPaye || 0);
 
@@ -452,7 +474,10 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <UserCheck className="w-4 h-4 inline-block mr-1" />
-                    {language === 'ar' ? 'المندوب' : 'Représentant'} <span className="text-red-500">*</span>
+                    {language === 'ar' ? 'المندوب' : 'Représentant'}
+                    <span className="text-gray-400 text-xs ml-1">
+                      ({language === 'ar' ? 'اختياري' : 'optionnel'})
+                    </span>
                   </label>
                   <div className="relative">
                     <div
@@ -502,7 +527,7 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
                                   <div className="font-medium text-gray-900">
                                     {rep.prenom} {rep.nom}
                                   </div>
-                                  <div className="text-sm text-gray-500">{rep.zone}</div>
+                                  <div className="text-sm text-gray-500">{rep.email}</div>
                                 </div>
                                 <div className="text-xs text-gray-400">
                                   {rep.telephone}
@@ -710,7 +735,6 @@ export default function AddClientModal({ isOpen, onClose, initialData = null }) 
                 </div>
               </div>
             </div>
-
           </div>
         </div>
 

@@ -5,7 +5,6 @@ import CategoryDeleteModal from './CategoryDeleteModal';
 import { toast } from 'sonner';
 import {
   X,
-  Plus,
   Edit,
   Trash2,
   Package2,
@@ -35,8 +34,10 @@ export default function BatchModal({ isOpen, onClose }) {
           designation: b.designation,
           quantity: b.quantity,
           expiryDate: b.expiry_date,
+          productionDate: b.production_date,
           receptionDate: b.reception_date,
-          alertDate: b.alert_date
+          alertDate: b.alert_date,
+          alertQuantity: b.alert_quantity ?? 0
         }));
         setBatches(mappedData);
       } else {
@@ -82,11 +83,6 @@ export default function BatchModal({ isOpen, onClose }) {
     return batches.find(batch => batch.id === selectedBatch) || null;
   };
 
-  const handleNewBatch = () => {
-    setFormMode('add');
-    setFormModalOpen(true);
-  };
-
   const handleModifyBatch = () => {
     if (selectedBatch) {
       setFormMode('edit');
@@ -109,8 +105,10 @@ export default function BatchModal({ isOpen, onClose }) {
         designation: batchData.designation,
         quantity: batchData.quantity,
         expiry_date: batchData.expiryDate,
+        production_date: batchData.productionDate,
         reception_date: batchData.receptionDate,
-        alert_date: batchData.alertDate
+        alert_date: batchData.alertDate,
+        alert_quantity: batchData.alertQuantity ?? 0
       };
 
       let response;
@@ -201,31 +199,6 @@ export default function BatchModal({ isOpen, onClose }) {
 
           <div className="flex items-center space-x-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
             {/* Action Buttons */}
-            <button
-              onClick={handleNewBatch}
-              className="flex-none flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm shadow-sm whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('batch.new') || 'Nouveau'}</span>
-            </button>
-
-            <button
-              onClick={handleModifyBatch}
-              disabled={!selectedBatch}
-              className="flex-none flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-sm whitespace-nowrap"
-            >
-              <Edit className="w-4 h-4" />
-              <span>{t('batch.modify') || 'Modifier'}</span>
-            </button>
-
-            <button
-              onClick={handleDeleteBatch}
-              disabled={!selectedBatch}
-              className="flex-none flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-sm whitespace-nowrap"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>{t('batch.delete') || 'Supprimer'}</span>
-            </button>
 
             <button
               onClick={onClose}
@@ -252,6 +225,9 @@ export default function BatchModal({ isOpen, onClose }) {
                     {t('batch.quantity') || 'Quantité'}
                   </th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
+                    {t('batch.productionDate') || 'Date Production'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
                     {t('batch.expiryDate') || 'Date Péremption'}
                   </th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
@@ -259,6 +235,9 @@ export default function BatchModal({ isOpen, onClose }) {
                   </th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
                     {t('batch.alertDate') || 'Date Alerte'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
+                    {t('batch.alertQuantity') || 'Seuil Alerte'}
                   </th>
                 </tr>
               </thead>
@@ -287,6 +266,9 @@ export default function BatchModal({ isOpen, onClose }) {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-700 text-sm whitespace-nowrap">
+                      {formatDate(batch.productionDate)}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 text-sm whitespace-nowrap">
                       {formatDate(batch.expiryDate)}
                     </td>
                     <td className="px-6 py-4 text-gray-700 text-sm whitespace-nowrap">
@@ -294,6 +276,15 @@ export default function BatchModal({ isOpen, onClose }) {
                     </td>
                     <td className="px-6 py-4 text-gray-700 text-sm whitespace-nowrap">
                       {formatDate(batch.alertDate)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {batch.alertQuantity > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                          🔔 {batch.alertQuantity}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -304,6 +295,8 @@ export default function BatchModal({ isOpen, onClose }) {
                     <td className="px-6 py-4">
                       <span className="w-6 text-xs text-gray-300 mr-3">{filteredBatches.length + index + 1}</span>
                     </td>
+                    <td className="px-6 py-4"></td>
+                    <td className="px-6 py-4"></td>
                     <td className="px-6 py-4"></td>
                     <td className="px-6 py-4"></td>
                     <td className="px-6 py-4"></td>

@@ -1,65 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { 
-  Wrench, 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Star,
+import {
+  Wrench,
+  Plus,
+  Search,
+  Edit,
+  Trash2,
   DollarSign,
   Tag,
   AlertCircle,
   CheckCircle,
   X,
-  Settings
+  Settings,
+  Filter,
+  ArrowUpDown,
+  List,
+  LayoutGrid,
+  MoreVertical,
+  Activity,
+  Layers,
+  ChevronRight,
+  Download
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toast } from 'sonner';
 
 export default function Services() {
   const { language, direction, t } = useLanguage();
-  
-  const [services, setServices] = useState([
-    {
-      id: '1',
-      name: t('services.example1.name') || 'Installation logiciel',
-      description: t('services.example1.desc') || 'Installation et configuration de logiciels',
-      price: 2500,
-      category: t('services.example1.category') || 'Installation',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '2',
-      name: t('services.example2.name') || 'Maintenance préventive',
-      description: t('services.example2.desc') || 'Maintenance préventive système',
-      price: 5000,
-      category: t('services.example2.category') || 'Maintenance',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '3',
-      name: t('services.example3.name') || 'Formation utilisateur',
-      description: t('services.example3.desc') || 'Formation complète pour nouveaux utilisateurs',
-      price: 15000,
-      category: t('services.example3.category') || 'Formation',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '4',
-      name: 'Support technique',
-      description: 'Support technique à distance',
-      price: 1500,
-      category: 'Support',
-      createdAt: new Date().toISOString()
-    }
-  ]);
+
+  const [services, setServices] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -71,16 +53,70 @@ export default function Services() {
   const [categoryFormData, setCategoryFormData] = useState({ name: '', description: '' });
   const [editingCategoryIndex, setEditingCategoryIndex] = useState(null);
 
-  const [categories, setCategories] = useState([
-    'Installation',
-    'Maintenance', 
-    'Formation',
-    'Support',
-    'Réparation',
-    'Consultation',
-    'Configuration',
-    'Optimisation'
-  ]);
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const sResult = await window.electronAPI.services.getAll();
+      if (sResult.success) {
+        setServices(sResult.data);
+      }
+
+      const cResult = await window.electronAPI.serviceCategories.getAll();
+      if (cResult.success) {
+        setCategories(cResult.data);
+      }
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      toast.error(language === 'ar' ? 'خطأ في تحميل البيانات' : 'Erreur de chargement des données');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Stats computation
+  const stats = useMemo(() => {
+    const total = services.length;
+    const catCount = categories.length;
+    const avgPrice = total > 0
+      ? services.reduce((acc, s) => acc + (s.price || 0), 0) / total
+      : 0;
+
+    return { total, catCount, avgPrice };
+  }, [services, categories]);
+
+  // Filtering and Sorting
+  const processedServices = useMemo(() => {
+    let filtered = services.filter(service => {
+      const matchSearch =
+        (service.name && service.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (service.description && service.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (service.categoryName && service.categoryName.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchCategory = selectedCategoryFilter === 'all' || service.category_id?.toString() === selectedCategoryFilter;
+
+      return matchSearch && matchCategory;
+    });
+
+    return filtered.sort((a, b) => {
+      let valA = a[sortBy];
+      let valB = b[sortBy];
+
+      if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = valB.toLowerCase();
+      }
+
+      if (sortOrder === 'asc') {
+        return valA > valB ? 1 : -1;
+      } else {
+        return valA < valB ? 1 : -1;
+      }
+    });
+  }, [services, searchTerm, selectedCategoryFilter, sortBy, sortOrder]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -89,26 +125,22 @@ export default function Services() {
       newErrors.name = t('services.error.required') || (language === 'ar' ? 'هذا الحقل مطلوب' : 'Ce champ est requis');
     }
 
-    if (!formData.description.trim()) {
-      newErrors.description = t('services.error.required') || (language === 'ar' ? 'هذا الحقل مطلوب' : 'Ce champ est requis');
-    }
-
     if (!formData.category.trim()) {
       newErrors.category = t('services.error.required') || (language === 'ar' ? 'هذا الحقل مطلوب' : 'Ce champ est requis');
     }
 
     const price = parseFloat(formData.price);
-    if (!formData.price || isNaN(price) || price < 100 || price > 100000) {
-      newErrors.price = t('services.error.invalidPrice') || (language === 'ar' ? 'السعر يجب أن يكون بين 100 و 100000' : 'Le prix doit être entre 100 et 100000');
+    if (!formData.price || isNaN(price) || price < 0) {
+      newErrors.price = t('services.error.invalidPrice') || (language === 'ar' ? 'السعر غير صحيح' : 'Prix invalide');
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -117,46 +149,59 @@ export default function Services() {
       name: formData.name.trim(),
       description: formData.description.trim(),
       price: parseFloat(formData.price),
-      category: formData.category,
-      createdAt: new Date().toISOString()
+      category_id: parseInt(formData.category)
     };
 
-    if (editingService) {
-      // Update existing service
-      setServices(services.map(service => 
-        service.id === editingService.id 
-          ? { ...serviceData, id: editingService.id }
-          : service
-      ));
-      toast.success(t('services.success.updated') || (language === 'ar' ? 'تم تحديث الخدمة بنجاح' : 'Service mis à jour avec succès'));
-    } else {
-      // Add new service
-      const newService = {
-        ...serviceData,
-        id: Date.now().toString()
-      };
-      setServices([...services, newService]);
-      toast.success(t('services.success.added') || (language === 'ar' ? 'تم إضافة الخدمة بنجاح' : 'Service ajouté avec succès'));
+    try {
+      if (editingService) {
+        const result = await window.electronAPI.services.update(editingService.id, serviceData);
+        if (result.success) {
+          toast.success(language === 'ar' ? 'تم تحديث الخدمة بنجاح' : 'Service mis à jour avec succès');
+          fetchData();
+          handleCloseModal();
+        } else {
+          toast.error(result.error || 'Update failed');
+        }
+      } else {
+        const result = await window.electronAPI.services.create(serviceData);
+        if (result.success) {
+          toast.success(language === 'ar' ? 'تم إضافة الخدمة بنجاح' : 'Service ajouté avec succès');
+          fetchData();
+          handleCloseModal();
+        } else {
+          toast.error(result.error || 'Creation failed');
+        }
+      }
+    } catch (error) {
+      console.error('Service save error:', error);
+      toast.error('Connection error');
     }
-
-    handleCloseModal();
   };
 
   const handleEdit = (service) => {
     setEditingService(service);
     setFormData({
       name: service.name,
-      description: service.description,
+      description: service.description || '',
       price: service.price.toString(),
-      category: service.category
+      category: service.category_id ? service.category_id.toString() : ''
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (serviceId) => {
+  const handleDelete = async (serviceId) => {
     if (window.confirm(language === 'ar' ? 'هل أنت متأكد من حذف هذه الخدمة؟' : 'Êtes-vous sûr de vouloir supprimer ce service ?')) {
-      setServices(services.filter(service => service.id !== serviceId));
-      toast.success(t('services.success.deleted') || (language === 'ar' ? 'تم حذف الخدمة بنجاح' : 'Service supprimé avec succès'));
+      try {
+        const result = await window.electronAPI.services.delete(serviceId);
+        if (result.success) {
+          toast.success(language === 'ar' ? 'تم حذف الخدمة بنجاح' : 'Service supprimé avec succès');
+          fetchData();
+        } else {
+          toast.error(result.error || 'Delete failed');
+        }
+      } catch (error) {
+        console.error('Service delete error:', error);
+      }
     }
   };
 
@@ -172,46 +217,62 @@ export default function Services() {
     setErrors({});
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (categoryFormData.name.trim()) {
-      if (editingCategoryIndex !== null) {
-        // Edit existing category
-        const updatedCategories = [...categories];
-        updatedCategories[editingCategoryIndex] = categoryFormData.name.trim();
-        setCategories(updatedCategories);
-        toast.success(language === 'ar' ? 'تم تعديل الفئة بنجاح' : 'Catégorie modifiée avec succès');
-      } else {
-        // Add new category
-        if (!categories.includes(categoryFormData.name.trim())) {
-          setCategories([...categories, categoryFormData.name.trim()]);
-          toast.success(language === 'ar' ? 'تم إضافة الفئة بنجاح' : 'Catégorie ajoutée avec succès');
+      try {
+        if (editingCategoryIndex !== null) {
+          const catId = categories[editingCategoryIndex].id;
+          const result = await window.electronAPI.serviceCategories.update(catId, {
+            name: categoryFormData.name.trim(),
+            description: categoryFormData.description.trim()
+          });
+          if (result.success) {
+            toast.success(language === 'ar' ? 'تم تعديل الفئة بنجاح' : 'Catégorie modifiée avec succès');
+            fetchData();
+            handleCloseCategoryModal();
+          }
         } else {
-          toast.error(language === 'ar' ? 'هذه الفئة موجودة بالفعل' : 'Cette catégorie existe déjà');
-          return;
+          const result = await window.electronAPI.serviceCategories.create({
+            name: categoryFormData.name.trim(),
+            description: categoryFormData.description.trim()
+          });
+          if (result.success) {
+            toast.success(language === 'ar' ? 'تم إضافة الفئة بنجاح' : 'Catégorie ajoutée avec succès');
+            fetchData();
+            handleCloseCategoryModal();
+          } else {
+            toast.error(result.error);
+          }
         }
+      } catch (error) {
+        console.error('Category error:', error);
       }
-      handleCloseCategoryModal();
     }
   };
 
   const handleEditCategory = (index) => {
     setEditingCategoryIndex(index);
-    setCategoryFormData({ name: categories[index], description: '' });
+    setCategoryFormData({
+      name: categories[index].name,
+      description: categories[index].description || ''
+    });
     setIsCategoryModalOpen(true);
   };
 
-  const handleDeleteCategory = (index) => {
+  const handleDeleteCategory = async (index) => {
     if (window.confirm(language === 'ar' ? 'هل أنت متأكد من حذف هذه الفئة؟' : 'Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
-      const categoryToDelete = categories[index];
-      const updatedCategories = categories.filter((_, i) => i !== index);
-      setCategories(updatedCategories);
-      
-      // Reset form category if it was the deleted one
-      if (formData.category === categoryToDelete) {
-        setFormData(prev => ({ ...prev, category: '' }));
+      try {
+        const catId = categories[index].id;
+        const result = await window.electronAPI.serviceCategories.delete(catId);
+        if (result.success) {
+          toast.success(language === 'ar' ? 'تم حذف الفئة بنجاح' : 'Catégorie supprimée avec succès');
+          fetchData();
+        } else {
+          toast.error(result.error);
+        }
+      } catch (error) {
+        console.error('Category delete error:', error);
       }
-      
-      toast.success(language === 'ar' ? 'تم حذف الفئة بنجاح' : 'Catégorie supprimée avec succès');
     }
   };
 
@@ -221,11 +282,14 @@ export default function Services() {
     setCategoryFormData({ name: '', description: '' });
   };
 
-  const filteredServices = services.filter(service =>
-    service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const toggleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('fr-DZ', {
@@ -237,269 +301,335 @@ export default function Services() {
   };
 
   return (
-    <div className={`p-8 min-h-screen bg-slate-50 ${direction === 'rtl' ? 'rtl' : ''}`}>
-      {/* Header */}
-      <div className="mb-8">
-        <div className={`flex items-center gap-4 mb-4 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-          <div 
-            className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
-          >
+    <div className={`p-8 min-h-screen bg-[#f8fafc] ${direction === 'rtl' ? 'rtl' : ''}`}>
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+        <div className={`flex items-center gap-4 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+          <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-100">
             <Wrench className="w-8 h-8 text-white" />
           </div>
           <div className={direction === 'rtl' ? 'text-right' : ''}>
-            <h1 className="text-3xl font-bold mb-2" style={{ color: '#1b1b1b' }}>
-              {t('services.title') || t('sidebar.services')}
-            </h1>
-            <p className="text-gray-600 text-lg">
-              {t('services.subtitle') || (language === 'ar' ? 'إدارة الخدمات والعروض' : 'Gérez vos services et offres')}
-            </p>
+            <h1 className="text-2xl font-bold text-slate-800">{t('services.title') || 'Services Management'}</h1>
+            <p className="text-slate-500 font-medium">{t('services.subtitle') || 'Manage professional services and rates'}</p>
           </div>
         </div>
 
-        {/* Search and Add Button */}
-        <div className={`flex gap-4 items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-          <div className="relative flex-1 max-w-md">
-            <Search className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5`} />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t('services.searchServices') || t('services.search') || (language === 'ar' ? 'ابحث عن الخدمات...' : 'Rechercher des services...')}
-              className={`h-12 ${direction === 'rtl' ? 'pr-10 text-right' : 'pl-10'} border-2 border-gray-300 focus:border-purple-500`}
-            />
+        <div className={`flex items-center gap-3 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <List className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
           </div>
+
           <Button
             onClick={() => setIsModalOpen(true)}
-            className="h-12 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold px-6 rounded-xl shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="h-12 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold px-6 rounded-xl shadow-lg shadow-indigo-200 transition-all duration-300 transform hover:scale-[1.02] flex items-center gap-2"
           >
-            <Plus className="w-5 h-5 mr-2" />
-            {t('services.addService') || t('services.add') || (language === 'ar' ? 'إضافة خدمة' : 'Ajouter un service')}
+            <Plus className="w-5 h-5" />
+            {t('services.addService')}
           </Button>
         </div>
+      </div>
 
-        {/* Price Range Info */}
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className={`text-blue-700 text-sm font-medium ${direction === 'rtl' ? 'text-right' : ''}`}>
-            <DollarSign className="w-4 h-4 inline mr-1" />
-            {t('services.priceRange') || (language === 'ar' ? 'نطاق السعر: 100 - 100000 د.ج' : 'Plage de prix: 100 - 100000 DZD')}
-          </p>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+            <Activity className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('stats.totalServices') || 'Total Services'}</p>
+            <h3 className="text-2xl font-bold text-slate-800">{stats.total}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
+          <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('stats.categories') || 'Categories'}</p>
+            <h3 className="text-2xl font-bold text-slate-800">{stats.catCount}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <DollarSign className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('stats.avgPrice') || 'Avg. Price'}</p>
+            <h3 className="text-2xl font-bold text-slate-800">{formatPrice(stats.avgPrice)}</h3>
+          </div>
         </div>
       </div>
 
-      {/* Services Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredServices.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <Wrench className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">{t('services.noServices') || (language === 'ar' ? 'لا توجد خدمات' : 'Aucun service trouvé')}</p>
+      {/* Filters & Search Toolbar */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-col lg:flex-row gap-4 justify-between items-center">
+        <div className={`flex flex-1 items-center gap-3 w-full ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+          <div className="relative flex-1 max-w-md">
+            <Search className={`absolute ${direction === 'rtl' ? 'right-4' : 'left-4'} top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5`} />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t('services.searchPlaceholder')}
+              className={`w-full h-12 ${direction === 'rtl' ? 'pr-12 pl-4' : 'pl-12 pr-4'} rounded-xl bg-slate-50 border-slate-200 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-slate-700 outline-none border font-medium`}
+            />
           </div>
-        ) : (
-          filteredServices.map((service) => (
-            <div
-              key={service.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              {/* Service Header */}
-              <div className={`flex items-start justify-between mb-4 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex-1 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-1">{service.name}</h3>
-                  <div className={`flex items-center gap-2 mb-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                    <Tag className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm text-purple-600 font-medium">{service.category}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEdit(service)}
-                    className="h-8 w-8 p-0 border-blue-300 hover:border-blue-500 hover:bg-blue-50"
-                  >
-                    <Edit className="w-4 h-4 text-blue-600" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(service.id)}
-                    className="h-8 w-8 p-0 border-red-300 hover:border-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-              </div>
 
-              {/* Service Description */}
-              <p className={`text-gray-600 text-sm mb-4 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                {service.description}
-              </p>
-
-              {/* Service Details */}
-              <div className="space-y-3">
-                <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                  <span className={`text-sm text-gray-500 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                    {t('services.price') || (language === 'ar' ? 'السعر' : 'Prix')}:
-                  </span>
-                  <span className="text-lg font-bold text-green-600">
-                    {formatPrice(service.price)}
-                  </span>
-                </div>
-              </div>
+          <div className={`flex items-center gap-3 p-1 bg-slate-50 rounded-xl border border-slate-200 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Filter className="w-4 h-4 text-indigo-600" />
             </div>
-          ))
-        )}
+            <select
+              value={selectedCategoryFilter}
+              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+              className="h-10 bg-transparent border-none text-slate-600 pr-8 pl-2 outline-none font-semibold text-sm cursor-pointer"
+            >
+              <option value="all">{t('common.allCategories')}</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="h-12 border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition-all flex items-center gap-2 px-5 font-bold text-sm"
+          >
+            <Settings className="w-4 h-4" />
+            {t('services.manageCategories')}
+          </Button>
+          <Button
+            variant="outline"
+            className="h-12 border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 shadow-sm transition-all hidden md:flex items-center gap-2 px-5 font-bold text-sm"
+          >
+            <Download className="w-4 h-4" />
+            {t('common.export')}
+          </Button>
+        </div>
       </div>
 
-      {/* Add/Edit Service Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-          <div 
-            className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
-            style={{ backgroundColor: '#f3f3f3' }}
+      {/* Main Content View */}
+      {processedServices.length === 0 ? (
+        <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 py-20 text-center">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Wrench className="w-10 h-10 text-slate-300" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-700 mb-2">{t('services.noServicesFound') || 'No services found'}</h3>
+          <p className="text-slate-400 mb-6">{t('services.noServicesDesc') || 'Start by adding your first service to the catalog'}</p>
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold rounded-xl px-10 h-12 shadow-lg shadow-indigo-100 transition-all transform hover:scale-105"
           >
-            {/* Modal Header */}
-            <div className="bg-white shadow-sm border-b-2 border-gray-200 p-6 rounded-t-xl">
-              <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex items-center gap-3 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                  <div 
-                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-                    style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
-                  >
-                    <Wrench className="w-6 h-6 text-white" />
+            {t('services.createNow')}
+          </Button>
+        </div>
+      ) : viewMode === 'table' ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-200">
+                <th className={`px-6 py-4 text-sm font-semibold text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors ${direction === 'rtl' ? 'text-right' : ''}`} onClick={() => toggleSort('name')}>
+                  <div className={`flex items-center gap-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                    {t('services.name') || 'Service Name'}
+                    <ArrowUpDown className="w-3 h-3 opacity-50" />
                   </div>
-                  <h2 className="text-xl font-bold" style={{ color: '#1b1b1b' }}>
-                    {editingService ? (t('services.editService') || (language === 'ar' ? 'تعديل الخدمة' : 'Modifier le service')) : (t('services.addService') || t('services.add') || (language === 'ar' ? 'إضافة خدمة' : 'Ajouter un service'))}
-                  </h2>
+                </th>
+                <th className={`px-6 py-4 text-sm font-semibold text-slate-600 hidden md:table-cell ${direction === 'rtl' ? 'text-right' : ''}`}>
+                  {t('services.description') || 'Description'}
+                </th>
+                <th className={`px-6 py-4 text-sm font-semibold text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors ${direction === 'rtl' ? 'text-right' : ''}`} onClick={() => toggleSort('categoryName')}>
+                  <div className={`flex items-center gap-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                    {t('services.category') || 'Category'}
+                    <ArrowUpDown className="w-3 h-3 opacity-50" />
+                  </div>
+                </th>
+                <th className={`px-6 py-4 text-sm font-semibold text-slate-600 text-right cursor-pointer hover:text-indigo-600 transition-colors ${direction === 'rtl' ? 'text-left' : ''}`} onClick={() => toggleSort('price')}>
+                  <div className="flex items-center justify-end gap-2">
+                    {t('services.price') || 'Rate'}
+                    <ArrowUpDown className="w-3 h-3 opacity-50" />
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 text-center">
+                  {t('common.actions') || 'Actions'}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {processedServices.map((service) => (
+                <tr key={service.id} className="hover:bg-indigo-50/30 transition-colors group">
+                  <td className={`px-6 py-4 ${direction === 'rtl' ? 'text-right' : ''}`}>
+                    <div className="font-bold text-slate-800">{service.name}</div>
+                  </td>
+                  <td className={`px-6 py-4 text-slate-500 text-sm hidden md:table-cell max-w-xs truncate ${direction === 'rtl' ? 'text-right' : ''}`}>
+                    {service.description || '---'}
+                  </td>
+                  <td className={`px-6 py-4 ${direction === 'rtl' ? 'text-right' : ''}`}>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                      {service.categoryName || 'General'}
+                    </span>
+                  </td>
+                  <td className={`px-6 py-4 text-right font-mono font-bold text-slate-700 ${direction === 'rtl' ? 'text-left' : ''}`}>
+                    {formatPrice(service.price)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleEdit(service)}
+                        className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(service.id)}
+                        className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {processedServices.map((service) => (
+            <div key={service.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-all group overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="bg-white/80 backdrop-blur-sm shadow-sm rounded-lg p-1 flex gap-1 border border-slate-200">
+                  <button onClick={() => handleEdit(service)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md"><Edit className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => handleDelete(service.id)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
-                <Button
-                  onClick={handleCloseModal}
-                  variant="outline"
-                  size="sm"
-                  className="h-10 w-10 p-0 border-gray-300 hover:border-red-400 hover:bg-red-50"
-                >
-                  <X className="w-5 h-5 text-gray-600 hover:text-red-600" />
-                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 mb-3">
+                <Tag className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">{service.categoryName}</span>
+              </div>
+
+              <h3 className="text-xl font-bold text-slate-800 mb-2 truncate">{service.name}</h3>
+              <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">{service.description}</p>
+
+              <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
+                <div>
+                  <p className="text-xs text-slate-400 font-semibold mb-1 uppercase">{t('services.rate') || 'Rate'}</p>
+                  <p className="text-2xl font-black text-slate-800 font-mono tracking-tighter">{formatPrice(service.price)}</p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+                  <ChevronRight className="w-5 h-5" />
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Service Name */}
-              <div className="space-y-2">
-                <Label className={`text-sm font-medium text-gray-700 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                  {t('services.name') || (language === 'ar' ? 'اسم الخدمة' : 'Nom du service')} <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder={language === 'ar' ? 'أدخل اسم الخدمة' : 'Entrez le nom du service'}
-                  className={`h-12 border-2 border-gray-300 focus:border-purple-500 ${direction === 'rtl' ? 'text-right' : ''} ${errors.name ? 'border-red-500 bg-red-50' : ''}`}
-                />
-                {errors.name && (
-                  <p className="text-red-600 text-sm flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.name}
-                  </p>
-                )}
-              </div>
+      {/* MODALS */}
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label className={`text-sm font-medium text-gray-700 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                  {t('services.description') || (language === 'ar' ? 'الوصف' : 'Description')} <span className="text-red-500">*</span>
-                </Label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder={language === 'ar' ? 'أدخل وصف الخدمة' : 'Entrez la description du service'}
-                  rows={3}
-                  className={`w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none ${direction === 'rtl' ? 'text-right' : ''} ${errors.description ? 'border-red-500 bg-red-50' : ''}`}
-                />
-                {errors.description && (
-                  <p className="text-red-600 text-sm flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Category */}
-              <div className="space-y-2">
-                <Label className={`text-sm font-medium text-gray-700 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                  {t('services.category') || (language === 'ar' ? 'الفئة' : 'Catégorie')} <span className="text-red-500">*</span>
-                </Label>
-                <div className={`flex gap-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className={`flex-1 h-12 border-2 border-gray-300 rounded-lg px-4 bg-white focus:border-purple-500 focus:outline-none transition-colors ${direction === 'rtl' ? 'text-right' : ''} ${errors.category ? 'border-red-500 bg-red-50' : ''}`}
-                  >
-                    <option value="">{language === 'ar' ? 'اختر فئة' : 'Sélectionner une catégorie'}</option>
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    onClick={() => setIsCategoryModalOpen(true)}
-                    variant="outline"
-                    className="h-12 w-12 p-0 border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 transition-all duration-300"
-                    title={language === 'ar' ? 'إدارة الفئات' : 'Gérer les catégories'}
-                  >
-                    <Settings className="w-5 h-5 text-purple-600" />
-                  </Button>
+      {/* Service Add/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={handleCloseModal} />
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <Wrench className="w-5 h-5" />
                 </div>
-                {errors.category && (
-                  <p className="text-red-600 text-sm flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.category}
-                  </p>
-                )}
+                <h2 className="text-xl font-bold text-slate-800">
+                  {editingService ? (t('services.editService') || 'Edit Service') : (t('services.newService') || 'New Service')}
+                </h2>
               </div>
+              <button
+                onClick={handleCloseModal}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* Price */}
-              <div className="space-y-2">
-                <Label className={`text-sm font-medium text-gray-700 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                  {t('services.price') || (language === 'ar' ? 'السعر' : 'Prix')} <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <DollarSign className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5`} />
+            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.name') || 'Service Name'}</Label>
                   <Input
-                    type="number"
-                    value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                    placeholder="100"
-                    min="100"
-                    max="100000"
-                    className={`h-12 ${direction === 'rtl' ? 'pr-10 text-right' : 'pl-10'} border-2 border-gray-300 focus:border-purple-500 ${errors.price ? 'border-red-500 bg-red-50' : ''}`}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g. Engine Diagnostic"
+                    className={`h-12 rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 ${errors.name ? 'border-rose-400 ring-4 ring-rose-500/10' : ''}`}
+                  />
+                  {errors.name && <span className="text-rose-500 text-xs font-semibold">{errors.name}</span>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.category') || 'Category'}</Label>
+                    <div className="relative">
+                      <select
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:border-indigo-500 outline-none appearance-none"
+                      >
+                        <option value="">{t('common.select') || 'Select...'}</option>
+                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                      </select>
+                      <Settings
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                        onClick={() => setIsCategoryModalOpen(true)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.rate') || 'Rate (DZD)'}</Label>
+                    <Input
+                      type="number"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      className="h-12 rounded-xl border-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.description') || 'Description'}</Label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
+                    className="w-full rounded-xl border border-slate-200 p-4 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                   />
                 </div>
-                {errors.price && (
-                  <p className="text-red-600 text-xs flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {errors.price}
-                  </p>
-                )}
               </div>
 
-              {/* Action Buttons */}
-              <div className={`flex gap-3 pt-4 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                <Button
-                  type="submit"
-                  className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg transition-all duration-300"
-                >
-                  <CheckCircle className="w-5 h-5 mr-2" />
-                  {editingService ? (t('common.save') || (language === 'ar' ? 'حفظ' : 'Enregistrer')) : (t('common.add') || (language === 'ar' ? 'إضافة' : 'Ajouter'))}
-                </Button>
+              <div className="flex gap-4 pt-4">
                 <Button
                   type="button"
-                  onClick={handleCloseModal}
                   variant="outline"
-                  className="flex-1 h-12 border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-medium rounded-xl transition-all duration-300"
+                  onClick={handleCloseModal}
+                  className="flex-1 h-12 rounded-xl border-slate-200 text-slate-600"
                 >
-                  <X className="w-5 h-5 mr-2" />
-                  {t('common.cancel') || (language === 'ar' ? 'إلغاء' : 'Annuler')}
+                  {t('common.cancel') || 'Cancel'}
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                >
+                  {editingService ? (t('common.update') || 'Update') : (t('common.save') || 'Save')}
                 </Button>
               </div>
             </form>
@@ -507,142 +637,67 @@ export default function Services() {
         </div>
       )}
 
-      {/* Category Management Modal */}
+      {/* Categories Modal - Premium Version */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-          <div 
-            className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-            style={{ backgroundColor: '#f3f3f3' }}
-          >
-            {/* Modal Header */}
-            <div className="bg-white shadow-sm border-b-2 border-gray-200 p-6 rounded-t-xl">
-              <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex items-center gap-3 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                  <div 
-                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-                    style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleCloseCategoryModal} />
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative animate-in slide-in-from-bottom-8 duration-300 overflow-hidden">
+            <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Tag className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-xl font-bold text-slate-800">{t('services.manageCategories') || 'Manage Categories'}</h2>
+              </div>
+              <button onClick={handleCloseCategoryModal} className="p-2 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="p-8">
+              <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 mb-8">
+                <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-widest mb-4">
+                  {editingCategoryIndex !== null ? 'Edit Category' : 'New Category'}
+                </h4>
+                <div className="flex flex-col md:flex-row gap-3">
+                  <Input
+                    value={categoryFormData.name}
+                    onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                    placeholder="Category name..."
+                    className="h-12 rounded-xl flex-[2] border-indigo-100 focus:border-indigo-500"
+                  />
+                  <Button
+                    onClick={handleAddCategory}
+                    className="bg-indigo-600 h-12 px-8 rounded-xl"
                   >
-                    <Settings className="w-6 h-6 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold" style={{ color: '#1b1b1b' }}>
-                    {language === 'ar' ? 'إدارة الفئات' : 'Gérer les catégories'}
-                  </h2>
+                    {editingCategoryIndex !== null ? 'Update' : 'Add'}
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleCloseCategoryModal}
-                  variant="outline"
-                  size="sm"
-                  className="h-10 w-10 p-0 border-gray-300 hover:border-red-400 hover:bg-red-50"
-                >
-                  <X className="w-5 h-5 text-gray-600 hover:text-red-600" />
-                </Button>
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto rounded-xl border border-slate-200">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {categories.map((cat, idx) => (
+                      <tr key={cat.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-slate-700">{cat.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-2">
+                            <button onClick={() => handleEditCategory(idx)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteCategory(idx)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 space-y-6">
-              {/* Add/Edit Category Form */}
-              <div className="bg-white rounded-lg p-4 border-2 border-purple-200">
-                <h3 className={`text-lg font-semibold mb-4 ${direction === 'rtl' ? 'text-right' : ''}`} style={{ color: '#1b1b1b' }}>
-                  {editingCategoryIndex !== null 
-                    ? (language === 'ar' ? 'تعديل الفئة' : 'Modifier la catégorie')
-                    : (language === 'ar' ? 'إضافة فئة جديدة' : 'Ajouter une nouvelle catégorie')
-                  }
-                </h3>
-                <div className="space-y-3">
-                  <div>
-                    <Label className={`text-sm font-medium text-gray-700 ${direction === 'rtl' ? 'text-right' : ''}`}>
-                      {language === 'ar' ? 'اسم الفئة' : 'Nom de la catégorie'} <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={categoryFormData.name}
-                      onChange={(e) => setCategoryFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder={language === 'ar' ? 'أدخل اسم الفئة' : 'Entrez le nom de la catégorie'}
-                      className={`h-10 border-2 border-gray-300 focus:border-purple-500 ${direction === 'rtl' ? 'text-right' : ''}`}
-                    />
-                  </div>
-                  <div className={`flex gap-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                    <Button
-                      onClick={handleAddCategory}
-                      disabled={!categoryFormData.name.trim()}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-lg transition-all duration-300"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      {editingCategoryIndex !== null 
-                        ? (language === 'ar' ? 'تحديث' : 'Modifier')
-                        : (language === 'ar' ? 'إضافة' : 'Ajouter')
-                      }
-                    </Button>
-                    {editingCategoryIndex !== null && (
-                      <Button
-                        onClick={handleCloseCategoryModal}
-                        variant="outline"
-                        className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-medium px-4 py-2 rounded-lg transition-all duration-300"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        {language === 'ar' ? 'إلغاء' : 'Annuler'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Categories List */}
-              <div className="bg-white rounded-lg border-2 border-gray-200">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className={`text-lg font-semibold ${direction === 'rtl' ? 'text-right' : ''}`} style={{ color: '#1b1b1b' }}>
-                    {language === 'ar' ? 'الفئات الحالية' : 'Catégories existantes'} ({categories.length})
-                  </h3>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {categories.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">
-                      <Tag className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                      <p>{language === 'ar' ? 'لا توجد فئات' : 'Aucune catégorie'}</p>
-                    </div>
-                  ) : (
-                    categories.map((category, index) => (
-                      <div
-                        key={index}
-                        className={`flex items-center justify-between p-3 border-b border-gray-100 hover:bg-purple-50 transition-colors ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}
-                      >
-                        <div className={`flex items-center gap-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-                          <Tag className="w-4 h-4 text-purple-600" />
-                          <span className="font-medium text-gray-700">{category}</span>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            onClick={() => handleEditCategory(index)}
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 border-blue-300 hover:border-blue-500 hover:bg-blue-50"
-                          >
-                            <Edit className="w-3 h-3 text-blue-600" />
-                          </Button>
-                          <Button
-                            onClick={() => handleDeleteCategory(index)}
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 border-red-300 hover:border-red-500 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3 text-red-600" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="bg-white border-t-2 border-gray-200 p-4 rounded-b-xl">
-              <Button
-                onClick={handleCloseCategoryModal}
-                className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-semibold py-2 rounded-lg shadow-lg transition-all duration-300"
-              >
-                {language === 'ar' ? 'إغلاق' : 'Fermer'}
-              </Button>
+            <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <Button onClick={handleCloseCategoryModal} className="rounded-xl border-slate-300 px-10">Close</Button>
             </div>
           </div>
         </div>

@@ -97,17 +97,20 @@ class ProductService {
             const result = this.repository.create(dbData);
 
             // SYNC TO BATCH TABLE: If batch info exists, create a batch record
-            if (result && result.id && (model.batchNumber || model.expiryDate)) {
+            if (result && result.id && (model.batchNumber || model.expiryDate || model.productionDate)) {
                 try {
                     this.db.prepare(`
-                        INSERT INTO batches (num_lot, product_id, designation, quantity, expiry_date, reception_date)
-                        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        INSERT INTO batches (num_lot, product_id, designation, quantity, expiry_date, production_date, reception_date, alert_quantity, alert_date)
+                        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
                     `).run(
                         model.batchNumber || `LOT-${result.id}`,
                         result.id,
                         model.designation,
                         model.stock || 0,
-                        model.expiryDate || null
+                        model.expiryDate || null,
+                        model.productionDate || null,
+                        model.alertQuantity || 0,
+                        model.alertDate || null
                     );
                 } catch (batchError) {
                     console.error('Error creating initial batch:', batchError);
@@ -185,7 +188,7 @@ class ProductService {
             }
 
             // SYNC TO BATCH TABLE: Update or create batch
-            if (updatedModel.batchNumber || updatedModel.expiryDate) {
+            if (updatedModel.batchNumber || updatedModel.expiryDate || updatedModel.productionDate) {
                 try {
                     // Check if lot exists for this product
                     const existingBatch = this.db.prepare(`SELECT id FROM batches WHERE num_lot = ? AND product_id = ?`)
@@ -194,25 +197,59 @@ class ProductService {
                     if (existingBatch) {
                         this.db.prepare(`
                             UPDATE batches 
-                            SET expiry_date = ?, designation = ?, quantity = ?, updated_at = CURRENT_TIMESTAMP 
+                            SET expiry_date = ?, production_date = ?, designation = ?, quantity = ?, alert_quantity = ?, alert_date = ?, updated_at = CURRENT_TIMESTAMP 
                             WHERE id = ?
-                        `).run(updatedModel.expiryDate || null, updatedModel.designation, updatedModel.stock || 0, existingBatch.id);
+                        `).run(
+                            updatedModel.expiryDate || null,
+                            updatedModel.productionDate || null,
+                            updatedModel.designation,
+                            updatedModel.stock || 0,
+                            updatedModel.alertQuantity || 0,
+                            updatedModel.alertDate || null,
+                            existingBatch.id
+                        );
                     } else {
                         // Create new batch if it doesn't exist but info is provided
                         this.db.prepare(`
-                            INSERT INTO batches (num_lot, product_id, designation, quantity, expiry_date, reception_date)
-                            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            INSERT INTO batches (num_lot, product_id, designation, quantity, expiry_date, production_date, reception_date, alert_quantity, alert_date)
+                            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
                         `).run(
                             updatedModel.batchNumber || `LOT-${id}`,
                             id,
                             updatedModel.designation,
                             updatedModel.stock || 0,
-                            updatedModel.expiryDate || null
+                            updatedModel.expiryDate || null,
+                            updatedModel.productionDate || null,
+                            updatedModel.alertQuantity || 0,
+                            updatedModel.alertDate || null
                         );
                     }
                 } catch (batchError) {
                     console.error('Error syncing batch on product update:', batchError);
                 }
+            }
+
+            // GLOBAL PROPAGATION: Update all other batches of this product with the new default settings
+            // This ensures "Dates de validité" and "Configuration Alerte" are synced to all existing lots
+            try {
+                this.db.prepare(`
+                    UPDATE batches 
+                    SET 
+                        alert_quantity = ?, 
+                        expiry_date = ?, 
+                        production_date = ?, 
+                        alert_date = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE product_id = ?
+                `).run(
+                    updatedModel.alertQuantity || 0,
+                    updatedModel.expiryDate || null,
+                    updatedModel.productionDate || null,
+                    updatedModel.alertDate || null,
+                    id
+                );
+            } catch (propagationError) {
+                console.error('Error propagating product settings to batches:', propagationError);
             }
             // SYNC DEPOT STOCKS
             if (productData.storehouseStocks) {
@@ -371,6 +408,41 @@ class ProductService {
             return ResponseHelper.success(models);
         } catch (error) {
             return ErrorHandler.handleError(error, 'ProductService.search');
+        }
+    }
+
+    async recalculateAllStock() {
+        try {
+            this.db.prepare(`
+                UPDATE products 
+                SET stock = (
+                    SELECT COALESCE(SUM(quantity), 0) 
+                    FROM batches 
+                    WHERE product_id = products.id
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            `).run();
+            return ResponseHelper.success(null, 'Tous les stocks ont été recalculés avec succès');
+        } catch (error) {
+            return ErrorHandler.handleDatabaseError(error);
+        }
+    }
+
+    async recalculateStoreStock() {
+        try {
+            this.db.prepare(`
+                UPDATE products 
+                SET stock = (
+                    SELECT COALESCE(SUM(quantity), 0) 
+                    FROM batches 
+                    WHERE product_id = products.id
+                ),
+                updated_at = CURRENT_TIMESTAMP
+                WHERE stock_category = 'store_item'
+            `).run();
+            return ResponseHelper.success(null, 'Le stock de détail a été recalculé avec succès');
+        } catch (error) {
+            return ErrorHandler.handleDatabaseError(error);
         }
     }
 }

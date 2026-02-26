@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { X, Save, Plus, Edit, ChevronDown, Search } from 'lucide-react';
+import { X, Save, Plus, Trash2, ChevronDown, Search, Bell, Edit } from 'lucide-react';
 
 export default function BatchFormModal({
   isOpen,
@@ -19,8 +19,10 @@ export default function BatchFormModal({
     designation: '',
     quantity: 0,
     expiryDate: '',
+    productionDate: '',
     receptionDate: '',
-    alertDate: ''
+    alertDate: '',
+    alertQuantity: 0
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -60,8 +62,10 @@ export default function BatchFormModal({
           designation: batch.designation || '',
           quantity: batch.quantity || 0,
           expiryDate: batch.expiryDate || '',
+          productionDate: batch.productionDate || '',
           receptionDate: batch.receptionDate || '',
-          alertDate: batch.alertDate || ''
+          alertDate: batch.alertDate || '',
+          alertQuantity: batch.alertQuantity ?? 0
         });
       } else {
         setFormData({
@@ -70,8 +74,10 @@ export default function BatchFormModal({
           designation: '',
           quantity: 0,
           expiryDate: '',
-          receptionDate: new Date().toISOString().split('T')[0], // Default reception to today
-          alertDate: ''
+          productionDate: '',
+          receptionDate: new Date().toISOString().split('T')[0],
+          alertDate: '',
+          alertQuantity: 0
         });
       }
     }
@@ -91,7 +97,6 @@ export default function BatchFormModal({
     if (!isDropdownOpen) {
       setProductSearchTerm('');
     } else {
-      // Focus search input when dropdown opens
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 100);
@@ -111,7 +116,10 @@ export default function BatchFormModal({
       productId: product.id,
       designation: product.designation,
       quantity: product.stock || 0,
-      expiryDate: product.expiry_date || prev.expiryDate || ''
+      expiryDate: product.expiryDate || prev.expiryDate || '',
+      productionDate: product.productionDate || prev.productionDate || '',
+      alertDate: product.alertDate || prev.alertDate || '',
+      alertQuantity: product.alertQuantity !== undefined ? product.alertQuantity : (prev.alertQuantity || 0)
     }));
     setIsDropdownOpen(false);
   };
@@ -156,7 +164,6 @@ export default function BatchFormModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -178,10 +185,8 @@ export default function BatchFormModal({
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-6">
-            {/* Row 1: NumLot */}
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -202,7 +207,6 @@ export default function BatchFormModal({
               </div>
             </div>
 
-            {/* Row 2: Désignation and Quantité */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2 relative custom-dropdown-container">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -212,9 +216,7 @@ export default function BatchFormModal({
                   <button
                     type="button"
                     onClick={() => !isLoading && setIsDropdownOpen(!isDropdownOpen)}
-                    className={`w-full px-4 py-3 text-left border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-150 bg-white flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse text-right' : 'flex-row'
-                      } ${isLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${isDropdownOpen ? 'border-blue-500 ring-2 ring-blue-500' : 'border-gray-200'
-                      }`}
+                    className={`w-full px-4 py-3 text-left border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-150 bg-white flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse text-right' : 'flex-row'} ${isLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${isDropdownOpen ? 'border-blue-500 ring-2 ring-blue-500' : 'border-gray-200'}`}
                   >
                     <span className={`block truncate ${!formData.designation ? 'text-gray-400' : 'text-gray-900'}`}>
                       {formData.designation || (t('select.product') || 'Sélectionner un produit')}
@@ -227,7 +229,6 @@ export default function BatchFormModal({
                       className="absolute z-50 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
                       style={{ filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.1))' }}
                     >
-                      {/* Search Bar inside dropdown */}
                       <div className="p-2 border-b border-gray-100 bg-gray-50">
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -249,11 +250,7 @@ export default function BatchFormModal({
                               key={p.id}
                               type="button"
                               onClick={() => handleProductSelect(p)}
-                              className={`w-full px-4 py-2.5 text-sm transition-colors flex items-center ${direction === 'rtl' ? 'text-right flex-row-reverse' : 'text-left'
-                                } ${formData.designation === p.designation
-                                  ? 'bg-blue-50 text-blue-600 font-medium'
-                                  : 'text-gray-700 hover:bg-gray-50'
-                                }`}
+                              className={`w-full px-4 py-2.5 text-sm transition-colors flex items-center ${direction === 'rtl' ? 'text-right flex-row-reverse' : 'text-left'} ${formData.designation === p.designation ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                             >
                               <span className="truncate">{p.designation}</span>
                             </button>
@@ -287,8 +284,20 @@ export default function BatchFormModal({
               </div>
             </div>
 
-            {/* Row 3: Dates */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('batch.add.productionDate') || 'Date Production'}
+                </label>
+                <input
+                  type="date"
+                  value={formData.productionDate}
+                  onChange={(e) => handleInputChange('productionDate', e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-150 text-sm"
+                  disabled={isLoading}
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('batch.add.expiryDate') || 'Date Péremption'}
@@ -328,9 +337,38 @@ export default function BatchFormModal({
                 />
               </div>
             </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                  <Bell className="w-4 h-4 text-amber-500" />
+                  Quantité d'Alerte
+                </label>
+                <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                  Seuil Minimal
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.alertQuantity}
+                  onChange={(e) => handleInputChange('alertQuantity', parseFloat(e.target.value) || 0)}
+                  className="w-full px-4 py-3 pl-10 border border-amber-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all duration-150 text-lg font-bold text-gray-800"
+                  placeholder="0"
+                  disabled={isLoading}
+                />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-300">
+                  <Bell className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-[10px] text-amber-600/80 italic font-medium mt-2">
+                L'alerte se déclenchera dès que la quantité de ce lot sera inférieure ou égale à ce nombre.
+              </p>
+            </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-100">
             <button
               type="button"
@@ -359,6 +397,3 @@ export default function BatchFormModal({
     </div>
   );
 }
-
-
-

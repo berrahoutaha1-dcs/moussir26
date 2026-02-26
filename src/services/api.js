@@ -89,6 +89,28 @@ class ApiService {
     return await window.electronAPI.clients.delete(id);
   }
 
+  // Client Finance
+  async getClientPayments(clientId) {
+    if (!this.isElectron()) {
+      return { success: true, data: [] };
+    }
+    return await window.electronAPI.clientPayments.getByClient(clientId);
+  }
+
+  async createClientPayment(payment) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.clientPayments.create(payment);
+  }
+
+  async getClientTransactions(clientId) {
+    if (!this.isElectron()) {
+      return { success: true, data: [] };
+    }
+    return await window.electronAPI.clientTransactions.getByClient(clientId);
+  }
+
   // Products
   async getAllProducts() {
     if (!this.isElectron()) {
