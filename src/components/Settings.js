@@ -27,6 +27,7 @@ import LogoutConfirmModal from './LogoutConfirmModal';
 import UsersModal from './UsersModal';
 import WorkersModal from './WorkersModal';
 import PrintersModal from './PrintersModal';
+import WorkerPaymentsModal from './WorkerPaymentsModal';
 
 export default function Settings({ onLogout }) {
   const { t, direction } = useLanguage();
@@ -40,6 +41,7 @@ export default function Settings({ onLogout }) {
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
   const [isWorkersModalOpen, setIsWorkersModalOpen] = useState(false);
   const [isPrintersModalOpen, setIsPrintersModalOpen] = useState(false);
+  const [isWorkerPaymentsModalOpen, setIsWorkerPaymentsModalOpen] = useState(false);
 
   const settingsItems = [
     {
@@ -161,8 +163,7 @@ export default function Settings({ onLogout }) {
         setIsPrintersModalOpen(true);
         break;
       case 'payment-workers':
-        // TODO: Implement PaymentWorkersModal
-        console.log('Payment Workers modal not yet implemented');
+        setIsWorkerPaymentsModalOpen(true);
         break;
       case 'support-plans':
         // TODO: Implement SupportPlansModal
@@ -297,6 +298,11 @@ export default function Settings({ onLogout }) {
       <PrintersModal
         isOpen={isPrintersModalOpen}
         onClose={() => setIsPrintersModalOpen(false)}
+      />
+
+      <WorkerPaymentsModal
+        isOpen={isWorkerPaymentsModalOpen}
+        onClose={() => setIsWorkerPaymentsModalOpen(false)}
       />
     </div>
   );

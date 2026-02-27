@@ -45,7 +45,6 @@ export default function Services() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price: '',
     category: ''
   });
   const [errors, setErrors] = useState({});
@@ -81,11 +80,8 @@ export default function Services() {
   const stats = useMemo(() => {
     const total = services.length;
     const catCount = categories.length;
-    const avgPrice = total > 0
-      ? services.reduce((acc, s) => acc + (s.price || 0), 0) / total
-      : 0;
 
-    return { total, catCount, avgPrice };
+    return { total, catCount };
   }, [services, categories]);
 
   // Filtering and Sorting
@@ -129,11 +125,6 @@ export default function Services() {
       newErrors.category = t('services.error.required') || (language === 'ar' ? 'هذا الحقل مطلوب' : 'Ce champ est requis');
     }
 
-    const price = parseFloat(formData.price);
-    if (!formData.price || isNaN(price) || price < 0) {
-      newErrors.price = t('services.error.invalidPrice') || (language === 'ar' ? 'السعر غير صحيح' : 'Prix invalide');
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -148,7 +139,6 @@ export default function Services() {
     const serviceData = {
       name: formData.name.trim(),
       description: formData.description.trim(),
-      price: parseFloat(formData.price),
       category_id: parseInt(formData.category)
     };
 
@@ -183,7 +173,6 @@ export default function Services() {
     setFormData({
       name: service.name,
       description: service.description || '',
-      price: service.price.toString(),
       category: service.category_id ? service.category_id.toString() : ''
     });
     setIsModalOpen(true);
@@ -211,7 +200,6 @@ export default function Services() {
     setFormData({
       name: '',
       description: '',
-      price: '',
       category: ''
     });
     setErrors({});
@@ -291,15 +279,6 @@ export default function Services() {
     }
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('fr-DZ', {
-      style: 'currency',
-      currency: 'DZD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(price);
-  };
-
   return (
     <div className={`p-8 min-h-screen bg-[#f8fafc] ${direction === 'rtl' ? 'rtl' : ''}`}>
       {/* Header Section */}
@@ -310,7 +289,7 @@ export default function Services() {
           </div>
           <div className={direction === 'rtl' ? 'text-right' : ''}>
             <h1 className="text-2xl font-bold text-slate-800">{t('services.title') || 'Services Management'}</h1>
-            <p className="text-slate-500 font-medium">{t('services.subtitle') || 'Manage professional services and rates'}</p>
+            <p className="text-slate-500 font-medium">{t('services.subtitle') || 'Manage professional services'}</p>
           </div>
         </div>
 
@@ -341,7 +320,7 @@ export default function Services() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
           <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
             <Activity className="w-6 h-6" />
@@ -359,16 +338,6 @@ export default function Services() {
           <div>
             <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('stats.categories') || 'Categories'}</p>
             <h3 className="text-2xl font-bold text-slate-800">{stats.catCount}</h3>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <DollarSign className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{t('stats.avgPrice') || 'Avg. Price'}</p>
-            <h3 className="text-2xl font-bold text-slate-800">{formatPrice(stats.avgPrice)}</h3>
           </div>
         </div>
       </div>
@@ -457,12 +426,6 @@ export default function Services() {
                     <ArrowUpDown className="w-3 h-3 opacity-50" />
                   </div>
                 </th>
-                <th className={`px-6 py-4 text-sm font-semibold text-slate-600 text-right cursor-pointer hover:text-indigo-600 transition-colors ${direction === 'rtl' ? 'text-left' : ''}`} onClick={() => toggleSort('price')}>
-                  <div className="flex items-center justify-end gap-2">
-                    {t('services.price') || 'Rate'}
-                    <ArrowUpDown className="w-3 h-3 opacity-50" />
-                  </div>
-                </th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 text-center">
                   {t('common.actions') || 'Actions'}
                 </th>
@@ -481,9 +444,6 @@ export default function Services() {
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                       {service.categoryName || 'General'}
                     </span>
-                  </td>
-                  <td className={`px-6 py-4 text-right font-mono font-bold text-slate-700 ${direction === 'rtl' ? 'text-left' : ''}`}>
-                    {formatPrice(service.price)}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-2">
@@ -526,11 +486,7 @@ export default function Services() {
               <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">{service.description}</p>
 
               <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold mb-1 uppercase">{t('services.rate') || 'Rate'}</p>
-                  <p className="text-2xl font-black text-slate-800 font-mono tracking-tighter">{formatPrice(service.price)}</p>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 ml-auto">
                   <ChevronRight className="w-5 h-5" />
                 </div>
               </div>
@@ -576,33 +532,23 @@ export default function Services() {
                   {errors.name && <span className="text-rose-500 text-xs font-semibold">{errors.name}</span>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.category') || 'Category'}</Label>
-                    <div className="relative">
-                      <select
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:border-indigo-500 outline-none appearance-none"
-                      >
-                        <option value="">{t('common.select') || 'Select...'}</option>
-                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                      </select>
-                      <Settings
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
-                        onClick={() => setIsCategoryModalOpen(true)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.rate') || 'Rate (DZD)'}</Label>
-                    <Input
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="h-12 rounded-xl border-slate-200"
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.category') || 'Category'}</Label>
+                  <div className="relative">
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full h-12 rounded-xl border border-slate-200 px-4 focus:border-indigo-500 outline-none appearance-none"
+                    >
+                      <option value="">{t('common.select') || 'Select...'}</option>
+                      {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                    </select>
+                    <Settings
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                      onClick={() => setIsCategoryModalOpen(true)}
                     />
                   </div>
+                  {errors.category && <span className="text-rose-500 text-xs font-semibold">{errors.category}</span>}
                 </div>
 
                 <div className="space-y-2">
@@ -632,9 +578,9 @@ export default function Services() {
                   {editingService ? (t('common.update') || 'Update') : (t('common.save') || 'Save')}
                 </Button>
               </div>
-            </form>
-          </div>
-        </div>
+            </form >
+          </div >
+        </div >
       )}
 
       {/* Categories Modal - Premium Version */}

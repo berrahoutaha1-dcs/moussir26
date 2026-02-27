@@ -396,6 +396,141 @@ function createTables() {
     )
   `).run();
 
+  // Migration for services table
+  const serviceColumns = db.prepare("PRAGMA table_info(services)").all();
+  const serviceColumnNames = serviceColumns.map(c => c.name);
+
+  if (!serviceColumnNames.includes('category_id')) {
+    try {
+      db.prepare("ALTER TABLE services ADD COLUMN category_id INTEGER").run();
+    } catch (e) { console.error('Error adding category_id to services:', e); }
+  }
+  if (!serviceColumnNames.includes('price')) {
+    try {
+      db.prepare("ALTER TABLE services ADD COLUMN price REAL DEFAULT 0").run();
+    } catch (e) { console.error('Error adding price to services:', e); }
+  }
+
+  // Workers (Personnel) Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS workers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nom_prenom TEXT NOT NULL,
+      date_naissance TEXT,
+      cin TEXT NOT NULL UNIQUE,
+      adresse TEXT,
+      fonction TEXT,
+      date_embauche TEXT,
+      salaire REAL DEFAULT 0,
+      photo_path TEXT,
+      statut TEXT DEFAULT 'actif',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  // Worker Payments Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS worker_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      worker_id INTEGER NOT NULL,
+      montant REAL NOT NULL,
+      date_paiement TEXT NOT NULL,
+      mode_paiement TEXT,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (worker_id) REFERENCES workers (id) ON DELETE CASCADE
+    )
+  `).run();
+
+  // Printers Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS printers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      libelle TEXT NOT NULL,
+      imprimante TEXT NOT NULL,
+      is_default INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  // Company Info Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS company_info (
+      id INTEGER PRIMARY KEY CHECK (id = 1), -- Only one row allowed
+      societe TEXT,
+      activite TEXT,
+      adresse TEXT,
+      telephone TEXT,
+      fax TEXT,
+      nif TEXT,
+      nis TEXT,
+      art_imp TEXT,
+      ai TEXT,
+      bank TEXT,
+      account_number TEXT,
+      photo_path TEXT,
+      currency TEXT DEFAULT 'DZD',
+      ticket_note TEXT,
+      ticket_note_enabled INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  // Ensure default company info exists
+  const companyInfoCount = db.prepare("SELECT COUNT(*) as count FROM company_info").get();
+  if (companyInfoCount.count === 0) {
+    db.prepare("INSERT INTO company_info (id, societe) VALUES (1, '')").run();
+  }
+
+  // Migration for company_info table
+  const companyColumns = db.prepare("PRAGMA table_info(company_info)").all();
+  const companyColumnNames = companyColumns.map(c => c.name);
+
+  if (!companyColumnNames.includes('ai')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN ai TEXT").run();
+    } catch (e) { console.error('Error adding ai to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('art_imp')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN art_imp TEXT").run();
+    } catch (e) { console.error('Error adding art_imp to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('bank')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN bank TEXT").run();
+    } catch (e) { console.error('Error adding bank to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('account_number')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN account_number TEXT").run();
+    } catch (e) { console.error('Error adding account_number to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('photo_path')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN photo_path TEXT").run();
+    } catch (e) { console.error('Error adding photo_path to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('ticket_note')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN ticket_note TEXT").run();
+    } catch (e) { console.error('Error adding ticket_note to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('ticket_note_enabled')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN ticket_note_enabled INTEGER DEFAULT 1").run();
+    } catch (e) { console.error('Error adding ticket_note_enabled to company_info:', e); }
+  }
+  if (!companyColumnNames.includes('currency')) {
+    try {
+      db.prepare("ALTER TABLE company_info ADD COLUMN currency TEXT DEFAULT 'DZD'").run();
+    } catch (e) { console.error('Error adding currency to company_info:', e); }
+  }
+
   // ── Migrations ──────────────────────────────────────────────────────────────
   // Add alert_quantity to batches if it doesn't exist yet
   try {

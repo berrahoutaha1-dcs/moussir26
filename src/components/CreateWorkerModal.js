@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Calendar, X, Check, Upload } from 'lucide-react';
+import { Calendar, X, Check, Upload, Image as ImageIcon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toast } from 'sonner';
 
-export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
+export default function CreateWorkerModal({ isOpen, onClose, onSave, worker }) {
   const { direction, t, language } = useLanguage();
+  const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
     nomPrenom: '',
     dateNaissance: '',
@@ -19,6 +20,32 @@ export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
     salaire: 0,
     photo: ''
   });
+
+  useEffect(() => {
+    if (worker && isOpen) {
+      setFormData({
+        nomPrenom: worker.nomPrenom || '',
+        dateNaissance: worker.dateNaissance || '',
+        cin: worker.cin || '',
+        adresse: worker.adresse || '',
+        fonction: worker.fonction || '',
+        dateEmbauche: worker.dateEmbauche || '',
+        salaire: worker.salaire || 0,
+        photo: worker.photo || ''
+      });
+    } else if (!worker && isOpen) {
+      setFormData({
+        nomPrenom: '',
+        dateNaissance: '',
+        cin: '',
+        adresse: '',
+        fonction: '',
+        dateEmbauche: '',
+        salaire: 0,
+        photo: ''
+      });
+    }
+  }, [worker, isOpen]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -34,7 +61,7 @@ export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
     }
 
     onSave(formData);
-    
+
     setFormData({
       nomPrenom: '',
       dateNaissance: '',
@@ -45,7 +72,7 @@ export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
       salaire: 0,
       photo: ''
     });
-    
+
     onClose();
   };
 
@@ -63,8 +90,27 @@ export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
     onClose();
   };
 
-  const handlePhotoUpload = () => {
-    console.log('Upload photo functionality');
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast.error('Image too large. Max 2MB allowed.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          photo: reader.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -77,7 +123,7 @@ export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
             </div>
             <div>
               <DialogTitle className="text-sm text-slate-800">
-                {t('worker.title')}
+                {worker ? t('worker.editTitle') : t('worker.title')}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-600">
                 {t('worker.subtitle')}
@@ -189,21 +235,30 @@ export default function CreateWorkerModal({ isOpen, onClose, onSave }) {
             </div>
 
             <div className="w-20 flex flex-col items-center">
-              <div 
-                className="w-16 h-16 border-2 border-dashed border-slate-300 rounded-full flex items-center justify-center cursor-pointer hover:border-slate-400 transition-colors bg-slate-50"
-                onClick={handlePhotoUpload}
+              <div
+                className="w-16 h-16 border-2 border-dashed border-slate-300 rounded-full flex items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-slate-50 overflow-hidden group"
+                onClick={handlePhotoClick}
               >
                 {formData.photo ? (
-                  <img 
-                    src={formData.photo} 
-                    alt={t('worker.photoAlt')} 
-                    className="w-full h-full object-cover rounded-full"
+                  <img
+                    src={formData.photo}
+                    alt={t('worker.photoAlt')}
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Upload className="w-4 h-4 text-slate-400" />
+                  <div className="flex flex-col items-center">
+                    <Upload className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                  </div>
                 )}
               </div>
-              <Label className="text-xs text-slate-600 mt-1 text-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+              <Label className="text-[10px] font-medium text-slate-500 mt-1 cursor-pointer hover:text-blue-600 transition-colors" onClick={handlePhotoClick}>
                 {t('worker.photo')}
               </Label>
             </div>

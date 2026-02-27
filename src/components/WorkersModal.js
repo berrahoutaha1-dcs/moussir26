@@ -1,61 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Plus, ChevronUp, ChevronDown, Edit, Trash2, X } from 'lucide-react';
+import { Plus, ChevronUp, ChevronDown, Edit, Trash2, X, Search } from 'lucide-react';
+import { Input } from './ui/input';
 import { useLanguage } from '../contexts/LanguageContext';
 import CreateWorkerModal from './CreateWorkerModal';
 import { toast } from 'sonner';
 
 export default function WorkersModal({ isOpen, onClose }) {
   const { direction, t, language } = useLanguage();
-  const [workers, setWorkers] = useState([
-    {
-      id: 1,
-      nomPrenom: 'amira',
-      dateNaissance: '29-01-2025',
-      cin: '6515641594693',
-      dateEmbauche: '29-01-2025',
-      salaire: 35000.00
-    },
-    {
-      id: 2,
-      nomPrenom: 'aymen',
-      dateNaissance: '11-06-2025',
-      cin: '487478942132',
-      dateEmbauche: '11-06-2025',
-      salaire: 40000.00
-    },
-    {
-      id: 3,
-      nomPrenom: 'BERRAHOU TAHA',
-      dateNaissance: '30-06-2025',
-      cin: '0014356453289',
-      dateEmbauche: '30-06-2025',
-      salaire: 50000.00
-    },
-    {
-      id: 4,
-      nomPrenom: 'oussama',
-      dateNaissance: '06-06-2025',
-      cin: '95561324781',
-      dateEmbauche: '06-06-2025',
-      salaire: 70000.00
-    },
-    {
-      id: 5,
-      nomPrenom: 'reda mokhtar',
-      dateNaissance: '24-06-2025',
-      cin: '15515815451',
-      dateEmbauche: '24-06-2025',
-      salaire: 30000.00
-    }
-  ]);
-  
+  const [workers, setWorkers] = useState([]);
   const [selectedWorkers, setSelectedWorkers] = useState([]);
   const [sortField, setSortField] = useState('nomPrenom');
   const [sortDirection, setSortDirection] = useState('asc');
   const [isCreateWorkerModalOpen, setIsCreateWorkerModalOpen] = useState(false);
+  const [editingWorker, setEditingWorker] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchWorkers = async () => {
+    try {
+      const result = await window.electronAPI.workers.getAll();
+      if (result.success) {
+        setWorkers(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching workers:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchWorkers();
+      setSelectedWorkers([]);
+      setSearchTerm('');
+    }
+  }, [isOpen]);
+
+  const handleSearch = async (val) => {
+    setSearchTerm(val);
+    try {
+      if (val.trim() === '') {
+        fetchWorkers();
+      } else {
+        const result = await window.electronAPI.workers.search(val);
+        if (result.success) {
+          setWorkers(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error searching workers:', error);
+    }
+  };
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -67,8 +63,8 @@ export default function WorkersModal({ isOpen, onClose }) {
   };
 
   const handleWorkerSelect = (workerId) => {
-    setSelectedWorkers(prev => 
-      prev.includes(workerId) 
+    setSelectedWorkers(prev =>
+      prev.includes(workerId)
         ? prev.filter(id => id !== workerId)
         : [...prev, workerId]
     );
@@ -83,34 +79,59 @@ export default function WorkersModal({ isOpen, onClose }) {
   };
 
   const handleNewWorker = () => {
+    setEditingWorker(null);
     setIsCreateWorkerModalOpen(true);
   };
 
-  const handleSaveNewWorker = (newWorkerData) => {
-    const newWorker = {
-      id: Math.max(...workers.map(w => w.id), 0) + 1,
-      ...newWorkerData
-    };
-    
-    setWorkers(prev => [...prev, newWorker]);
-    setIsCreateWorkerModalOpen(false);
-    toast.success(t('workers.success.added'));
+  const handleSaveWorker = async (workerData) => {
+    try {
+      let result;
+      if (editingWorker) {
+        result = await window.electronAPI.workers.update(editingWorker.id, workerData);
+      } else {
+        result = await window.electronAPI.workers.create(workerData);
+      }
+
+      if (result.success) {
+        toast.success(editingWorker ? t('workers.success.updated') : t('workers.success.added'));
+        fetchWorkers();
+        setIsCreateWorkerModalOpen(false);
+        setEditingWorker(null);
+      } else {
+        toast.error('Error: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error saving worker:', error);
+      toast.error('Failed to save worker');
+    }
   };
 
   const handleEditWorker = () => {
     if (selectedWorkers.length === 1) {
-      toast.info(t('workers.info.editComingSoon'));
+      const workerToEdit = workers.find(w => w.id === selectedWorkers[0]);
+      if (workerToEdit) {
+        setEditingWorker(workerToEdit);
+        setIsCreateWorkerModalOpen(true);
+      }
     }
   };
 
-  const handleDeleteWorkers = () => {
+  const handleDeleteWorkers = async () => {
     if (selectedWorkers.length > 0) {
       const confirmMessage = t('workers.confirmDelete').replace('{count}', selectedWorkers.length);
-      
+
       if (window.confirm(confirmMessage)) {
-        setWorkers(prev => prev.filter(worker => !selectedWorkers.includes(worker.id)));
-        setSelectedWorkers([]);
-        toast.success(t('workers.success.deleted'));
+        try {
+          for (const id of selectedWorkers) {
+            await window.electronAPI.workers.delete(id);
+          }
+          setSelectedWorkers([]);
+          fetchWorkers();
+          toast.success(t('workers.success.deleted'));
+        } catch (error) {
+          console.error('Error deleting workers:', error);
+          toast.error('Failed to delete workers');
+        }
       }
     }
   };
@@ -118,20 +139,20 @@ export default function WorkersModal({ isOpen, onClose }) {
   const sortedWorkers = [...workers].sort((a, b) => {
     const aValue = a[sortField];
     const bValue = b[sortField];
-    
+
     let comparison = 0;
     if (typeof aValue === 'string' && typeof bValue === 'string') {
       comparison = aValue.localeCompare(bValue);
     } else if (typeof aValue === 'number' && typeof bValue === 'number') {
       comparison = aValue - bValue;
     }
-    
+
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
   const SortIcon = ({ field }) => {
     if (sortField !== field) return <ChevronUp className="w-2 h-2 text-blue-200 opacity-50" />;
-    return sortDirection === 'asc' 
+    return sortDirection === 'asc'
       ? <ChevronUp className="w-2 h-2 text-white" />
       : <ChevronDown className="w-2 h-2 text-white" />;
   };
@@ -140,7 +161,7 @@ export default function WorkersModal({ isOpen, onClose }) {
     return new Intl.NumberFormat('fr-FR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
-    }).format(amount);
+    }).format(amount || 0);
   };
 
   return (
@@ -159,6 +180,15 @@ export default function WorkersModal({ isOpen, onClose }) {
               </div>
 
               <div className="flex space-x-1">
+                <div className="relative mr-2">
+                  <Search className={`absolute ${direction === 'rtl' ? 'right-2' : 'left-2'} top-2 w-3 h-3 text-slate-400`} />
+                  <Input
+                    value={searchTerm}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    placeholder={t('common.search')}
+                    className={`h-7 text-xs ${direction === 'rtl' ? 'pr-7' : 'pl-7'} w-40 bg-slate-50 border-slate-200 focus:bg-white`}
+                  />
+                </div>
                 <Button
                   onClick={onClose}
                   size="sm"
@@ -207,7 +237,7 @@ export default function WorkersModal({ isOpen, onClose }) {
                         checked={selectedWorkers.length === workers.length && workers.length > 0}
                       />
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="text-white cursor-pointer hover:bg-blue-600 transition-colors py-1 border-0 text-xs w-[160px]"
                       onClick={() => handleSort('nomPrenom')}
                     >
@@ -216,7 +246,7 @@ export default function WorkersModal({ isOpen, onClose }) {
                         <SortIcon field="nomPrenom" />
                       </div>
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="text-white cursor-pointer hover:bg-blue-600 transition-colors py-1 border-0 text-xs w-[100px]"
                       onClick={() => handleSort('dateNaissance')}
                     >
@@ -225,7 +255,7 @@ export default function WorkersModal({ isOpen, onClose }) {
                         <SortIcon field="dateNaissance" />
                       </div>
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="text-white cursor-pointer hover:bg-blue-600 transition-colors py-1 border-0 text-xs w-[120px]"
                       onClick={() => handleSort('cin')}
                     >
@@ -234,7 +264,7 @@ export default function WorkersModal({ isOpen, onClose }) {
                         <SortIcon field="cin" />
                       </div>
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="text-white cursor-pointer hover:bg-blue-600 transition-colors py-1 border-0 text-xs w-[100px]"
                       onClick={() => handleSort('dateEmbauche')}
                     >
@@ -243,7 +273,7 @@ export default function WorkersModal({ isOpen, onClose }) {
                         <SortIcon field="dateEmbauche" />
                       </div>
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className={`text-white cursor-pointer hover:bg-blue-600 transition-colors py-1 border-0 text-xs text-right w-[120px] ${direction === 'rtl' ? 'text-left' : 'text-right'}`}
                       onClick={() => handleSort('salaire')}
                     >
@@ -265,9 +295,8 @@ export default function WorkersModal({ isOpen, onClose }) {
                     sortedWorkers.map((worker) => (
                       <TableRow
                         key={worker.id}
-                        className={`hover:bg-slate-50 cursor-pointer border-0 ${
-                          selectedWorkers.includes(worker.id) ? 'bg-blue-50' : 'bg-white'
-                        }`}
+                        className={`hover:bg-slate-50 cursor-pointer border-0 ${selectedWorkers.includes(worker.id) ? 'bg-blue-50' : 'bg-white'
+                          }`}
                         onClick={() => handleWorkerSelect(worker.id)}
                       >
                         <TableCell className="text-center py-1 w-[40px]">
@@ -310,7 +339,7 @@ export default function WorkersModal({ isOpen, onClose }) {
                 </div>
                 <div>
                   {(language === 'ar' ? t('workers.payrollAr') : t('workers.payroll'))
-                    .replace('{amount}', formatSalary(workers.reduce((total, worker) => total + worker.salaire, 0)))}
+                    .replace('{amount}', formatSalary(workers.reduce((total, worker) => total + (worker.salaire || 0), 0)))}
                 </div>
               </div>
             )}
@@ -320,8 +349,12 @@ export default function WorkersModal({ isOpen, onClose }) {
 
       <CreateWorkerModal
         isOpen={isCreateWorkerModalOpen}
-        onClose={() => setIsCreateWorkerModalOpen(false)}
-        onSave={handleSaveNewWorker}
+        onClose={() => {
+          setIsCreateWorkerModalOpen(false);
+          setEditingWorker(null);
+        }}
+        onSave={handleSaveWorker}
+        worker={editingWorker}
       />
     </>
   );

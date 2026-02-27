@@ -987,6 +987,368 @@ function setupIpcHandlers() {
     }
   });
 
+  // ============================================
+  // COMPANY INFO ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.COMPANY_INFO.GET,
+    ErrorMiddleware.wrap(
+      async () => {
+        const stmt = db.prepare('SELECT * FROM company_info WHERE id = 1');
+        const row = stmt.get();
+        return { success: true, data: row };
+      },
+      'CompanyInfo.get'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.COMPANY_INFO.UPDATE,
+    ErrorMiddleware.wrap(
+      async (event, data) => {
+        logger.info('Updating company info with data:', data);
+
+        const fields = Object.keys(data).filter(key => [
+          'societe', 'activite', 'adresse', 'telephone', 'fax',
+          'nif', 'nis', 'ai', 'bank', 'account_number', 'photo_path',
+          'ticket_note', 'ticket_note_enabled', 'currency'
+        ].includes(key));
+
+        const sets = fields.map(f => `${f} = ?`).join(', ');
+        const values = fields.map(f => data[f]);
+
+        // Ensure row 1 exists (it should, but just in case)
+        const exists = db.prepare('SELECT id FROM company_info WHERE id = 1').get();
+        if (!exists) {
+          logger.warn('Company info row 1 not found, creating it');
+          db.prepare('INSERT INTO company_info (id) VALUES (1)').run();
+        }
+
+        const stmt = db.prepare(`UPDATE company_info SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = 1`);
+        stmt.run(...values);
+
+        const updated = db.prepare('SELECT * FROM company_info WHERE id = 1').get();
+        return { success: true, data: updated };
+      },
+      'CompanyInfo.update'
+    )
+  );
+
+  // ============================================
+  // WORKERS (PERSONNEL) ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.WORKERS.GET_ALL,
+    ErrorMiddleware.wrap(
+      async (event, options) => {
+        const stmt = db.prepare('SELECT * FROM workers ORDER BY nom_prenom ASC');
+        const rows = stmt.all();
+        // Map database fields to frontend fields
+        const mappedRows = rows.map(row => ({
+          id: row.id,
+          nomPrenom: row.nom_prenom,
+          dateNaissance: row.date_naissance,
+          cin: row.cin,
+          adresse: row.adresse,
+          fonction: row.fonction,
+          dateEmbauche: row.date_embauche,
+          salaire: row.salaire,
+          photo: row.photo_path
+        }));
+        return { success: true, data: mappedRows };
+      },
+      'Workers.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKERS.CREATE,
+    ErrorMiddleware.wrap(
+      async (event, data) => {
+        const stmt = db.prepare(`
+          INSERT INTO workers (
+            nom_prenom, date_naissance, cin, adresse, 
+            fonction, date_embauche, salaire, photo_path
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        const result = stmt.run(
+          data.nomPrenom,
+          data.dateNaissance,
+          data.cin,
+          data.adresse || null,
+          data.fonction || null,
+          data.dateEmbauche || null,
+          data.salaire || 0,
+          data.photo || null
+        );
+
+        return { success: true, id: result.lastInsertRowid };
+      },
+      'Workers.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKERS.UPDATE,
+    ErrorMiddleware.wrap(
+      async (event, id, data) => {
+        const stmt = db.prepare(`
+          UPDATE workers SET 
+            nom_prenom = ?, 
+            date_naissance = ?, 
+            cin = ?, 
+            adresse = ?, 
+            fonction = ?, 
+            date_embauche = ?, 
+            salaire = ?, 
+            photo_path = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `);
+
+        stmt.run(
+          data.nomPrenom,
+          data.dateNaissance,
+          data.cin,
+          data.adresse || null,
+          data.fonction || null,
+          data.dateEmbauche || null,
+          data.salaire || 0,
+          data.photo || null,
+          id
+        );
+
+        return { success: true };
+      },
+      'Workers.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKERS.DELETE,
+    ErrorMiddleware.wrap(
+      async (event, id) => {
+        const stmt = db.prepare('DELETE FROM workers WHERE id = ?');
+        stmt.run(id);
+        return { success: true };
+      },
+      'Workers.delete'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKERS.SEARCH,
+    ErrorMiddleware.wrap(
+      async (event, searchTerm) => {
+        const stmt = db.prepare(`
+          SELECT * FROM workers 
+          WHERE nom_prenom LIKE ? OR cin LIKE ? OR fonction LIKE ?
+          ORDER BY nom_prenom ASC
+        `);
+        const query = `%${searchTerm}%`;
+        const rows = stmt.all(query, query, query);
+        const mappedRows = rows.map(row => ({
+          id: row.id,
+          nomPrenom: row.nom_prenom,
+          dateNaissance: row.date_naissance,
+          cin: row.cin,
+          adresse: row.adresse,
+          fonction: row.fonction,
+          dateEmbauche: row.date_embauche,
+          salaire: row.salaire,
+          photo: row.photo_path
+        }));
+        return { success: true, data: mappedRows };
+      },
+      'Workers.search'
+    )
+  );
+
+  // ============================================
+  // WORKER PAYMENTS ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.WORKER_PAYMENTS.GET_ALL,
+    ErrorMiddleware.wrap(
+      async () => {
+        const stmt = db.prepare(`
+          SELECT wp.*, w.nom_prenom as worker_name 
+          FROM worker_payments wp
+          JOIN workers w ON wp.worker_id = w.id
+          ORDER BY wp.date_paiement DESC
+        `);
+        return { success: true, data: stmt.all() };
+      },
+      'WorkerPayments.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKER_PAYMENTS.GET_BY_WORKER,
+    ErrorMiddleware.wrap(
+      async (event, workerId) => {
+        const stmt = db.prepare('SELECT * FROM worker_payments WHERE worker_id = ? ORDER BY date_paiement DESC');
+        return { success: true, data: stmt.all(workerId) };
+      },
+      'WorkerPayments.getByWorker'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKER_PAYMENTS.CREATE,
+    ErrorMiddleware.wrap(
+      async (event, data) => {
+        logger.info('Creating worker payment:', data);
+
+        // Fail-safe: ensure table exists (it should, but just in case of initialization timing)
+        db.prepare(`
+          CREATE TABLE IF NOT EXISTS worker_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER NOT NULL,
+            montant REAL NOT NULL,
+            date_paiement TEXT NOT NULL,
+            mode_paiement TEXT,
+            note TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (worker_id) REFERENCES workers (id) ON DELETE CASCADE
+          )
+        `).run();
+
+        const stmt = db.prepare(`
+          INSERT INTO worker_payments (worker_id, montant, date_paiement, mode_paiement, note)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(data.worker_id, data.montant, data.date_paiement, data.mode_paiement, data.note);
+        return { success: true, id: result.lastInsertRowid };
+      },
+      'WorkerPayments.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKER_PAYMENTS.UPDATE,
+    ErrorMiddleware.wrap(
+      async (event, id, data) => {
+        const stmt = db.prepare(`
+          UPDATE worker_payments SET 
+            worker_id = ?, montant = ?, date_paiement = ?, mode_paiement = ?, note = ?, 
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `);
+        stmt.run(data.worker_id, data.montant, data.date_paiement, data.mode_paiement, data.note, id);
+        return { success: true };
+      },
+      'WorkerPayments.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.WORKER_PAYMENTS.DELETE,
+    ErrorMiddleware.wrap(
+      async (event, id) => {
+        const stmt = db.prepare('DELETE FROM worker_payments WHERE id = ?');
+        stmt.run(id);
+        return { success: true };
+      },
+      'WorkerPayments.delete'
+    )
+  );
+
+  // ============================================
+  // PRINTERS ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.PRINTERS.GET_ALL,
+    ErrorMiddleware.wrap(
+      async () => {
+        const stmt = db.prepare('SELECT * FROM printers ORDER BY created_at ASC');
+        return { success: true, data: stmt.all() };
+      },
+      'Printers.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PRINTERS.CREATE,
+    ErrorMiddleware.wrap(
+      async (event, data) => {
+        const stmt = db.prepare(`
+          INSERT INTO printers (libelle, imprimante, is_default)
+          VALUES (?, ?, ?)
+        `);
+        const result = stmt.run(data.libelle, data.imprimante, data.is_default || 0);
+        return { success: true, id: result.lastInsertRowid };
+      },
+      'Printers.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PRINTERS.UPDATE,
+    ErrorMiddleware.wrap(
+      async (event, id, data) => {
+        const stmt = db.prepare(`
+          UPDATE printers SET 
+            libelle = ?, imprimante = ?, is_default = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `);
+        stmt.run(data.libelle, data.imprimante, data.is_default || 0, id);
+        return { success: true };
+      },
+      'Printers.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PRINTERS.DELETE,
+    ErrorMiddleware.wrap(
+      async (event, id) => {
+        const stmt = db.prepare('DELETE FROM printers WHERE id = ?');
+        stmt.run(id);
+        return { success: true };
+      },
+      'Printers.delete'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PRINTERS.DETECT,
+    ErrorMiddleware.wrap(
+      async (event) => {
+        const printers = await event.sender.getPrintersAsync();
+        return { success: true, data: printers };
+      },
+      'Printers.detect'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SYSTEM.RESET_DATABASE,
+    ErrorMiddleware.wrap(
+      async (event, newCurrency) => {
+        logger.info('Resetting database for complete currency change...');
+
+        const tablesToClear = [
+          'client_payments', 'client_transactions', 'clients',
+          'supplier_payments', 'supplier_transactions', 'suppliers',
+          'batches', 'products', 'categories', 'brands', 'product_families',
+          'worker_payments', 'workers', 'services', 'service_categories',
+          'representatives', 'storehouses', 'shelves'
+        ];
+
+        db.transaction(() => {
+          for (const table of tablesToClear) {
+            try {
+              db.prepare(`DELETE FROM ${table}`).run();
+              try {
+                db.prepare(`DELETE FROM sqlite_sequence WHERE name = ?`).run(table);
+              } catch (seqError) {
+                // Ignore
+              }
+            } catch (e) {
+              logger.warn(`Could not clear table ${table}:`, e.message);
+            }
+          }
+
+          db.prepare('UPDATE company_info SET currency = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(newCurrency);
+          logger.info(`Successfully reset database and set currency to ${newCurrency}`);
+        })();
+
+        return { success: true };
+      },
+      'System.resetDatabase'
+    )
+  );
+
   logger.info('IPC Handlers registered successfully');
 }
 

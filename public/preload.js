@@ -149,5 +149,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, data) => ipcRenderer.invoke('service_categories:update', id, data),
     delete: (id) => ipcRenderer.invoke('service_categories:delete', id),
   },
+  companyInfo: {
+    get: () => ipcRenderer.invoke('company_info:get'),
+    update: (data) => ipcRenderer.invoke('company_info:update', data),
+  },
+  workers: {
+    getAll: (options) => ipcRenderer.invoke('workers:getAll', options),
+    getById: (id) => ipcRenderer.invoke('workers:getById', id),
+    create: (data) => ipcRenderer.invoke('workers:create', data),
+    update: (id, data) => ipcRenderer.invoke('workers:update', id, data),
+    delete: (id) => ipcRenderer.invoke('workers:delete', id),
+    search: (searchTerm) => ipcRenderer.invoke('workers:search', searchTerm),
+  },
+  workerPayments: {
+    getAll: () => ipcRenderer.invoke('worker_payments:getAll'),
+    getByWorker: (workerId) => ipcRenderer.invoke('worker_payments:getByWorker', workerId),
+    create: (data) => ipcRenderer.invoke('worker_payments:create', data),
+    update: (id, data) => ipcRenderer.invoke('worker_payments:update', id, data),
+    delete: (id) => ipcRenderer.invoke('worker_payments:delete', id),
+  },
+  printers: {
+    getAll: () => ipcRenderer.invoke('printers:getAll'),
+    create: (data) => ipcRenderer.invoke('printers:create', data),
+    update: (id, data) => ipcRenderer.invoke('printers:update', id, data),
+    delete: (id) => ipcRenderer.invoke('printers:delete', id),
+    detect: () => ipcRenderer.invoke('printers:detect'),
+  },
+  system: {
+    resetDatabase: (newCurrency) => ipcRenderer.invoke('system:resetDatabase', newCurrency),
+  }
 });
 

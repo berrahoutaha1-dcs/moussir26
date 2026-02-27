@@ -165,6 +165,35 @@ const IPC_CHANNELS = {
     UPDATE: 'representatives:update',
     DELETE: 'representatives:delete',
     SEARCH: 'representatives:search'
+  },
+  COMPANY_INFO: {
+    GET: 'company_info:get',
+    UPDATE: 'company_info:update'
+  },
+  WORKERS: {
+    GET_ALL: 'workers:getAll',
+    GET_BY_ID: 'workers:getById',
+    CREATE: 'workers:create',
+    UPDATE: 'workers:update',
+    DELETE: 'workers:delete',
+    SEARCH: 'workers:search'
+  },
+  WORKER_PAYMENTS: {
+    GET_BY_WORKER: 'worker_payments:getByWorker',
+    GET_ALL: 'worker_payments:getAll',
+    CREATE: 'worker_payments:create',
+    UPDATE: 'worker_payments:update',
+    DELETE: 'worker_payments:delete'
+  },
+  PRINTERS: {
+    GET_ALL: 'printers:getAll',
+    CREATE: 'printers:create',
+    UPDATE: 'printers:update',
+    DELETE: 'printers:delete',
+    DETECT: 'printers:detect'
+  },
+  SYSTEM: {
+    RESET_DATABASE: 'system:resetDatabase'
   }
 };
 
