@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { 
-  Calendar, 
-  Plus, 
-  Search, 
+import {
+  Calendar,
+  Plus,
+  Search,
   Filter,
   Clock,
   Users,
@@ -27,6 +27,7 @@ import PlanificationModal from './PlanificationModal';
 import CalendarModal from './CalendarModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
+import apiService from '../services/api';
 
 export default function Planification() {
   const { t, direction, language } = useLanguage();
@@ -42,60 +43,28 @@ export default function Planification() {
   const [planningToDelete, setPlanningToDelete] = useState(null);
   const [sortConfig, setSortConfig] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [plannings, setPlannings] = useState([]);
 
-  const [plannings, setPlannings] = useState([
-    {
-      id: '1',
-      clientName: 'Ahmed Benali',
-      clientPhone: '+213 555 123 456',
-      serviceDescription: t('planification.example1.service'),
-      scheduledDate: '2025-01-15',
-      scheduledTime: '14:00',
-      deadline: '2025-01-15',
-      debtClearanceDay: '2025-01-20',
-      revenue: 150000,
-      paymentStatus: 'partial',
-      paymentPercentage: 50,
-      paymentAmount: 75000,
-      status: 'in-progress',
-      priority: 'high',
-      notes: '',
-    },
-    {
-      id: '2',
-      clientName: 'Fatima Zahra',
-      clientPhone: '+213 666 789 012',
-      serviceDescription: t('planification.example2.service'),
-      scheduledDate: '2025-01-18',
-      scheduledTime: '09:00',
-      deadline: '2025-01-18',
-      debtClearanceDay: '2025-01-22',
-      revenue: 80000,
-      paymentStatus: 'paid',
-      paymentPercentage: 100,
-      paymentAmount: 80000,
-      status: 'pending',
-      priority: 'medium',
-      notes: '',
-    },
-    {
-      id: '3',
-      clientName: 'Mohamed Krim',
-      clientPhone: '+213 777 345 678',
-      serviceDescription: t('planification.example1.service'),
-      scheduledDate: '2025-01-12',
-      scheduledTime: '10:30',
-      deadline: '2025-01-12',
-      debtClearanceDay: '2025-01-15',
-      revenue: 200000,
-      paymentStatus: 'pending',
-      paymentPercentage: 0,
-      paymentAmount: 0,
-      status: 'completed',
-      priority: 'low',
-      notes: '',
-    },
-  ]);
+  const loadPlannings = async () => {
+    setIsLoading(true);
+    try {
+      const result = await apiService.getAllPlannings();
+      if (result.success) {
+        setPlannings(result.data);
+      } else {
+        toast.error(t('planification.error.loadFailed'));
+      }
+    } catch (error) {
+      console.error('Error loading plannings:', error);
+      toast.error(t('planification.error.loadFailed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPlannings();
+  }, [dateFilter, statusFilter, priorityFilter]);
 
   const handleAddPlanning = () => {
     setEditingPlanning(null);
@@ -112,23 +81,45 @@ export default function Planification() {
     setIsDeleteModalOpen(true);
   };
 
-  const confirmDeletePlanning = () => {
+  const confirmDeletePlanning = async () => {
     if (planningToDelete) {
-      setPlannings(prev => prev.filter(p => p.id !== planningToDelete.id));
-      toast.success(t('planification.success.deleted'));
+      try {
+        const result = await apiService.deletePlanning(planningToDelete.id);
+        if (result.success) {
+          setPlannings(prev => prev.filter(p => p.id !== planningToDelete.id));
+          toast.success(t('planification.success.deleted'));
+        } else {
+          toast.error(t('planification.error.deleteFailed'));
+        }
+      } catch (error) {
+        console.error('Error deleting planning:', error);
+        toast.error(t('planification.error.deleteFailed'));
+      }
       setPlanningToDelete(null);
       setIsDeleteModalOpen(false);
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedPlannings.length === 0) {
       toast.error(t('planification.error.noSelection'));
       return;
     }
-    setPlannings(prev => prev.filter(p => !selectedPlannings.includes(p.id)));
-    toast.success(t('planification.success.bulkDeleted'));
-    setSelectedPlannings([]);
+
+    try {
+      const results = await Promise.all(selectedPlannings.map(id => apiService.deletePlanning(id)));
+      if (results.every(r => r.success)) {
+        setPlannings(prev => prev.filter(p => !selectedPlannings.includes(p.id)));
+        toast.success(t('planification.success.bulkDeleted'));
+        setSelectedPlannings([]);
+      } else {
+        toast.error(t('planification.error.bulkDeleteFailed'));
+        loadPlannings(); // Reload to be safe
+      }
+    } catch (error) {
+      console.error('Error in bulk delete:', error);
+      toast.error(t('planification.error.bulkDeleteFailed'));
+    }
   };
 
   const handleSelectAll = () => {
@@ -140,8 +131,8 @@ export default function Planification() {
   };
 
   const handleSelectPlanning = (planningId) => {
-    setSelectedPlannings(prev => 
-      prev.includes(planningId) 
+    setSelectedPlannings(prev =>
+      prev.includes(planningId)
         ? prev.filter(id => id !== planningId)
         : [...prev, planningId]
     );
@@ -156,15 +147,8 @@ export default function Planification() {
   };
 
   const handleRefresh = async () => {
-    setIsLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success(t('planification.success.refreshed'));
-    } catch (error) {
-      toast.error(t('planification.error.refreshFailed'));
-    } finally {
-      setIsLoading(false);
-    }
+    await loadPlannings();
+    toast.success(t('planification.success.refreshed'));
   };
 
   const handleExport = async () => {
@@ -200,11 +184,24 @@ export default function Planification() {
     toast.success(t('planification.success.printed'));
   };
 
-  const handleStatusChange = (planningId, newStatus) => {
-    setPlannings(prev => prev.map(p => 
-      p.id === planningId ? { ...p, status: newStatus } : p
-    ));
-    toast.success(t('planification.success.statusUpdated'));
+  const handleStatusChange = async (planningId, newStatus) => {
+    try {
+      const planning = plannings.find(p => p.id === planningId);
+      if (!planning) return;
+
+      const result = await apiService.updatePlanning(planningId, { ...planning, status: newStatus });
+      if (result.success) {
+        setPlannings(prev => prev.map(p =>
+          p.id === planningId ? { ...p, status: newStatus } : p
+        ));
+        toast.success(t('planification.success.statusUpdated'));
+      } else {
+        toast.error(t('planification.error.updateFailed'));
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error(t('planification.error.updateFailed'));
+    }
   };
 
   const handleContactClient = (planning) => {
@@ -221,22 +218,33 @@ export default function Planification() {
     toast.success(t('planification.success.whatsappOpened'));
   };
 
-  const handleSavePlanning = (planningData) => {
-    if (editingPlanning) {
-      setPlannings(prev => prev.map(p => 
-        p.id === editingPlanning.id ? { ...planningData, id: p.id } : p
-      ));
-      toast.success(t('planification.success.updated'));
-    } else {
-      const newPlanning = {
-        ...planningData,
-        id: Date.now().toString(),
-      };
-      setPlannings(prev => [newPlanning, ...prev]);
-      toast.success(t('planification.success.added'));
+  const handleSavePlanning = async (planningData) => {
+    try {
+      if (editingPlanning) {
+        const result = await apiService.updatePlanning(editingPlanning.id, planningData);
+        if (result.success) {
+          setPlannings(prev => prev.map(p =>
+            p.id === editingPlanning.id ? result.data : p
+          ));
+          toast.success(t('planification.success.updated'));
+        } else {
+          toast.error(t('planification.error.updateFailed'));
+        }
+      } else {
+        const result = await apiService.createPlanning(planningData);
+        if (result.success) {
+          setPlannings(prev => [result.data, ...prev]);
+          toast.success(t('planification.success.added'));
+        } else {
+          toast.error(t('planification.error.addFailed'));
+        }
+      }
+      setIsPlanificationModalOpen(false);
+      setEditingPlanning(null);
+    } catch (error) {
+      console.error('Error saving planning:', error);
+      toast.error(t('planification.error.saveFailed'));
     }
-    setIsPlanificationModalOpen(false);
-    setEditingPlanning(null);
   };
 
   const getStatusColor = (status) => {
@@ -251,16 +259,16 @@ export default function Planification() {
 
   const filteredPlannings = plannings.filter(planning => {
     const matchesSearch = planning.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         planning.serviceDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         planning.clientPhone.includes(searchQuery);
+      planning.serviceDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      planning.clientPhone.includes(searchQuery);
     const matchesStatus = statusFilter === 'all' || planning.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || planning.priority === priorityFilter;
-    
+
     let matchesDate = true;
     const planningDate = new Date(planning.scheduledDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     switch (dateFilter) {
       case 'today':
         matchesDate = planningDate.toDateString() === today.toDateString();
@@ -281,7 +289,7 @@ export default function Planification() {
       default:
         matchesDate = true;
     }
-    
+
     return matchesSearch && matchesStatus && matchesPriority && matchesDate;
   });
 
@@ -289,12 +297,12 @@ export default function Planification() {
     if (!sortConfig) return 0;
     let aValue = a[sortConfig.key];
     let bValue = b[sortConfig.key];
-    
+
     if (sortConfig.key === 'scheduledDate' || sortConfig.key === 'deadline') {
       aValue = new Date(aValue).getTime();
       bValue = new Date(bValue).getTime();
     }
-    
+
     if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
     if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
     return 0;
@@ -305,7 +313,7 @@ export default function Planification() {
     return p.scheduledDate === today;
   });
   const upcomingPlannings = plannings.filter(p => new Date(p.scheduledDate) > new Date());
-  const overduePlannings = plannings.filter(p => 
+  const overduePlannings = plannings.filter(p =>
     new Date(p.deadline) < new Date() && p.status !== 'completed'
   );
   const completedPlannings = plannings.filter(p => p.status === 'completed');
@@ -322,7 +330,7 @@ export default function Planification() {
             {t('planification.subtitle')}
           </p>
         </div>
-        
+
         <div className={`flex gap-3 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
           <Button
             onClick={handleRefresh}
@@ -333,7 +341,7 @@ export default function Planification() {
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             {t('planification.refresh')}
           </Button>
-          
+
           <Button
             onClick={handleExport}
             variant="outline"
@@ -342,7 +350,7 @@ export default function Planification() {
             <Download className="w-4 h-4" />
             {t('planification.export')}
           </Button>
-          
+
           <Button
             onClick={handlePrint}
             variant="outline"
@@ -351,7 +359,7 @@ export default function Planification() {
             <Printer className="w-4 h-4" />
             {t('planification.print')}
           </Button>
-          
+
           <Button
             onClick={() => setIsCalendarModalOpen(true)}
             variant="outline"
@@ -360,7 +368,7 @@ export default function Planification() {
             <Calendar className="w-4 h-4" />
             {t('planification.calendar')}
           </Button>
-          
+
           <Button
             onClick={handleAddPlanning}
             className="text-white font-bold flex items-center gap-2"
@@ -373,59 +381,67 @@ export default function Planification() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+        <Card className="border-l-4 border-l-blue-500 shadow-sm transition-all hover:shadow-md">
+          <CardContent className="p-4">
             <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
               <div>
-                <p className="text-sm text-gray-600 mb-1">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   {t('planification.stats.pending')}
                 </p>
-                <p className="text-2xl font-bold text-blue-600">{todayPlannings.length}</p>
+                <p className="text-xl font-black text-blue-600 leading-none">{todayPlannings.length}</p>
               </div>
-              <Calendar className="w-8 h-8 text-blue-500" />
+              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                <Calendar className="w-5 h-5" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-6">
+        <Card className="border-l-4 border-l-green-500 shadow-sm transition-all hover:shadow-md">
+          <CardContent className="p-4">
             <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
               <div>
-                <p className="text-sm text-gray-600 mb-1">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   {t('planification.stats.inProgress')}
                 </p>
-                <p className="text-2xl font-bold text-green-600">{upcomingPlannings.length}</p>
+                <p className="text-xl font-black text-green-600 leading-none">{upcomingPlannings.length}</p>
               </div>
-              <Clock className="w-8 h-8 text-green-500" />
+              <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center text-green-500">
+                <Clock className="w-5 h-5" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="p-6">
+        <Card className="border-l-4 border-l-red-500 shadow-sm transition-all hover:shadow-md">
+          <CardContent className="p-4">
             <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
               <div>
-                <p className="text-sm text-gray-600 mb-1">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   {t('planification.stats.overdue')}
                 </p>
-                <p className="text-2xl font-bold text-red-600">{overduePlannings.length}</p>
+                <p className="text-xl font-black text-red-600 leading-none">{overduePlannings.length}</p>
               </div>
-              <XCircle className="w-8 h-8 text-red-500" />
+              <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
+                <XCircle className="w-5 h-5" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="p-6">
+        <Card className="border-l-4 border-l-purple-500 shadow-sm transition-all hover:shadow-md">
+          <CardContent className="p-4">
             <div className={`flex items-center justify-between ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
               <div>
-                <p className="text-sm text-gray-600 mb-1">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   {t('planification.stats.completed')}
                 </p>
-                <p className="text-2xl font-bold text-purple-600">{completedPlannings.length}</p>
+                <p className="text-xl font-black text-purple-600 leading-none">{completedPlannings.length}</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-purple-500" />
+              <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-purple-500">
+                <CheckCircle className="w-5 h-5" />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -439,7 +455,7 @@ export default function Planification() {
               <Filter className="w-5 h-5" />
               {t('planification.filters')}
             </div>
-            
+
             {selectedPlannings.length > 0 && (
               <div className={`flex items-center gap-3 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
                 <span className="text-sm text-gray-600">
@@ -469,7 +485,7 @@ export default function Planification() {
                 className={`${direction === 'rtl' ? 'pr-10 text-right' : 'pl-10'}`}
               />
             </div>
-            
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -506,9 +522,9 @@ export default function Planification() {
             </select>
 
             <div className={`text-sm text-gray-600 flex items-center ${direction === 'rtl' ? 'justify-end' : 'justify-start'}`}>
-              {t('planification.results', { 
-                filtered: sortedPlannings.length, 
-                total: plannings.length 
+              {t('planification.results', {
+                filtered: sortedPlannings.length,
+                total: plannings.length
               })}
             </div>
           </div>
@@ -609,11 +625,10 @@ export default function Planification() {
                         <div className="font-medium text-green-600">
                           {planning.revenue.toLocaleString()} {t('currency') || 'DZD'}
                         </div>
-                        <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${
-                          planning.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
+                        <div className={`text-xs px-2 py-1 rounded-full mt-1 inline-block ${planning.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
                           planning.paymentStatus === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
+                            'bg-red-100 text-red-800'
+                          }`}>
                           {planning.paymentPercentage.toFixed(0)}% {t(`planification.payment.${planning.paymentStatus}`)}
                         </div>
                       </div>
@@ -631,11 +646,10 @@ export default function Planification() {
                       </select>
                     </td>
                     <td className={`py-4 px-4 ${direction === 'rtl' ? 'text-right' : 'text-left'}`}>
-                      <span className={`text-sm ${
-                        planning.priority === 'high' ? 'text-red-600 font-bold' :
+                      <span className={`text-sm ${planning.priority === 'high' ? 'text-red-600 font-bold' :
                         planning.priority === 'medium' ? 'text-orange-600 font-medium' :
-                        'text-green-600 font-normal'
-                      }`}>
+                          'text-green-600 font-normal'
+                        }`}>
                         {t(`planification.priority.${planning.priority}`)}
                       </span>
                     </td>
@@ -674,7 +688,7 @@ export default function Planification() {
                 ))}
               </tbody>
             </table>
-            
+
             {sortedPlannings.length === 0 && (
               <div className="text-center py-12">
                 <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -688,8 +702,9 @@ export default function Planification() {
       </Card>
 
       {/* Planification Modal */}
-      <PlanificationModal 
+      <PlanificationModal
         isOpen={isPlanificationModalOpen}
+        editingPlanning={editingPlanning}
         onClose={() => {
           setIsPlanificationModalOpen(false);
           setEditingPlanning(null);
@@ -712,8 +727,8 @@ export default function Planification() {
               </div>
             </DialogTitle>
             <DialogDescription className={`text-gray-600 mt-4 ${direction === 'rtl' ? 'text-right' : ''}`}>
-              {t('planification.deleteConfirm.message', { 
-                clientName: planningToDelete?.clientName || '' 
+              {t('planification.deleteConfirm.message', {
+                clientName: planningToDelete?.clientName || ''
               })}
             </DialogDescription>
           </DialogHeader>
@@ -740,6 +755,7 @@ export default function Planification() {
       <CalendarModal
         isOpen={isCalendarModalOpen}
         onClose={() => setIsCalendarModalOpen(false)}
+        plannings={plannings}
       />
     </div>
   );

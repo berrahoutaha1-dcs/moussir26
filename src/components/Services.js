@@ -14,7 +14,6 @@ import {
   CheckCircle,
   X,
   Settings,
-  Filter,
   ArrowUpDown,
   List,
   LayoutGrid,
@@ -38,14 +37,14 @@ export default function Services() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: ''
+    category: '',
+    price: ''
   });
   const [errors, setErrors] = useState({});
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -92,7 +91,7 @@ export default function Services() {
         (service.description && service.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (service.categoryName && service.categoryName.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchCategory = selectedCategoryFilter === 'all' || service.category_id?.toString() === selectedCategoryFilter;
+      const matchCategory = true; // Category filter was removed
 
       return matchSearch && matchCategory;
     });
@@ -112,7 +111,7 @@ export default function Services() {
         return valA < valB ? 1 : -1;
       }
     });
-  }, [services, searchTerm, selectedCategoryFilter, sortBy, sortOrder]);
+  }, [services, searchTerm, sortBy, sortOrder]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -139,7 +138,8 @@ export default function Services() {
     const serviceData = {
       name: formData.name.trim(),
       description: formData.description.trim(),
-      category_id: parseInt(formData.category)
+      category_id: parseInt(formData.category),
+      price: parseFloat(formData.price) || 0
     };
 
     try {
@@ -173,7 +173,8 @@ export default function Services() {
     setFormData({
       name: service.name,
       description: service.description || '',
-      category: service.category_id ? service.category_id.toString() : ''
+      category: service.category_id ? service.category_id.toString() : '',
+      price: service.price ? service.price.toString() : (service.tarif ? service.tarif.toString() : '0')
     });
     setIsModalOpen(true);
   };
@@ -200,7 +201,8 @@ export default function Services() {
     setFormData({
       name: '',
       description: '',
-      category: ''
+      category: '',
+      price: ''
     });
     setErrors({});
   };
@@ -355,21 +357,7 @@ export default function Services() {
             />
           </div>
 
-          <div className={`flex items-center gap-3 p-1 bg-slate-50 rounded-xl border border-slate-200 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Filter className="w-4 h-4 text-indigo-600" />
-            </div>
-            <select
-              value={selectedCategoryFilter}
-              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-              className="h-10 bg-transparent border-none text-slate-600 pr-8 pl-2 outline-none font-semibold text-sm cursor-pointer"
-            >
-              <option value="all">{t('common.allCategories')}</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Removed category filtration dropdown as requested */}
         </div>
 
         <div className="flex items-center gap-3">
@@ -426,6 +414,12 @@ export default function Services() {
                     <ArrowUpDown className="w-3 h-3 opacity-50" />
                   </div>
                 </th>
+                <th className={`px-6 py-4 text-sm font-semibold text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors ${direction === 'rtl' ? 'text-right' : ''}`} onClick={() => toggleSort('price')}>
+                  <div className={`flex items-center gap-2 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+                    {t('services.price') || 'Tarif (DZD)'}
+                    <ArrowUpDown className="w-3 h-3 opacity-50" />
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 text-center">
                   {t('common.actions') || 'Actions'}
                 </th>
@@ -444,6 +438,9 @@ export default function Services() {
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                       {service.categoryName || 'General'}
                     </span>
+                  </td>
+                  <td className={`px-6 py-4 font-black text-slate-700 ${direction === 'rtl' ? 'text-right' : ''}`}>
+                    {parseFloat(service.price || service.tarif || 0).toLocaleString()} DZD
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-2">
@@ -485,7 +482,10 @@ export default function Services() {
               <h3 className="text-xl font-bold text-slate-800 mb-2 truncate">{service.name}</h3>
               <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">{service.description}</p>
 
-              <div className="flex items-end justify-between border-t border-slate-100 pt-4 mt-auto">
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+                <div className="text-lg font-black text-indigo-600">
+                  {parseFloat(service.price || service.tarif || 0).toLocaleString()} <span className="text-[10px] uppercase ml-1">DZD</span>
+                </div>
                 <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 ml-auto">
                   <ChevronRight className="w-5 h-5" />
                 </div>
@@ -549,6 +549,20 @@ export default function Services() {
                     />
                   </div>
                   {errors.category && <span className="text-rose-500 text-xs font-semibold">{errors.category}</span>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-700 uppercase tracking-wide">{t('services.price') || 'Pricing (DZD)'}</Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      placeholder="0.00"
+                      className="h-12 rounded-xl border-slate-200 pl-12 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-black"
+                    />
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500" />
+                  </div>
                 </div>
 
                 <div className="space-y-2">

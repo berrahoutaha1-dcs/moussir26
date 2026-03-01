@@ -444,6 +444,30 @@ function createTables() {
     )
   `).run();
 
+  // Plannings Table
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS plannings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clientName TEXT NOT NULL,
+      clientPhone TEXT,
+      serviceType TEXT,
+      serviceDescription TEXT,
+      scheduledDate TEXT,
+      scheduledTime TEXT,
+      deadline TEXT,
+      status TEXT DEFAULT 'pending',
+      priority TEXT DEFAULT 'medium',
+      notes TEXT,
+      revenue REAL DEFAULT 0,
+      calculationMethod TEXT,
+      paymentPercentage REAL DEFAULT 0,
+      paymentAmount REAL DEFAULT 0,
+      attachments TEXT, -- JSON string of file info
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
   // Printers Table
   db.prepare(`
     CREATE TABLE IF NOT EXISTS printers (

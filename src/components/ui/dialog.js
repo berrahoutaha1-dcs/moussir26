@@ -8,11 +8,11 @@ function Dialog({ open, onOpenChange, children, ...props }) {
   return (
     <div
       data-slot="dialog"
-      className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center"
       onClick={() => onOpenChange && onOpenChange(false)}
       {...props}
     >
-      <div 
+      <div
         className="relative z-50"
         onClick={(e) => e.stopPropagation()}
       >
@@ -34,7 +34,7 @@ function DialogContent({ className, children, onClose, ...props }) {
     <div
       data-slot="dialog-content"
       className={cn(
-        "modal-container z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 p-0 duration-200 sm:max-w-lg max-h-[90vh] overflow-hidden relative my-auto flex flex-col",
+        "modal-container z-50 gap-4 p-0 duration-200 max-h-[95vh] overflow-hidden relative my-auto flex flex-col bg-white rounded-3xl",
         className,
       )}
       {...props}
@@ -42,7 +42,7 @@ function DialogContent({ className, children, onClose, ...props }) {
       {onClose && (
         <DialogClose onClick={onClose} />
       )}
-      <div className="overflow-y-auto flex-1">
+      <div className="flex-1 overflow-hidden flex flex-col h-full">
         {children}
       </div>
     </div>

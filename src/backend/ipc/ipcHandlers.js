@@ -7,12 +7,29 @@ const SupplierFinanceController = require('../controllers/SupplierFinanceControl
 const ClientFinanceController = require('../controllers/ClientFinanceController');
 const RepresentativeController = require('../controllers/RepresentativeController');
 const ServiceController = require('../controllers/ServiceController');
+const PlanningController = require('../controllers/PlanningController');
 const RequestLogger = require('../middleware/RequestLogger');
 const ErrorMiddleware = require('../middleware/ErrorMiddleware');
 const { IPC_CHANNELS } = require('../constants');
 const logger = require('../utils/Logger');
 // Import other controllers as they are created
 // const ClientController = require('../controllers/ClientController');
+
+// Track all registered IPC channel names so we can remove them before re-registering
+const _registeredChannels = [];
+
+/**
+ * Safe wrapper around ipcMain.handle that removes any existing handler first.
+ * This prevents "Attempted to register a second handler" errors when Electron
+ * reloads or setupIpcHandlers() is called more than once.
+ */
+function safeHandle(channel, handler) {
+  ipcMain.removeHandler(channel);
+  ipcMain.handle(channel, handler);
+  if (!_registeredChannels.includes(channel)) {
+    _registeredChannels.push(channel);
+  }
+}
 
 /**
  * IPC Handlers Setup
@@ -22,15 +39,22 @@ const logger = require('../utils/Logger');
 function setupIpcHandlers() {
   const db = getDatabase();
 
-  // Initialize controllers
-  const supplierController = new SupplierController(db);
-  const clientController = new ClientController(db);
-  const productController = new ProductController(db);
-  const supplierFinanceController = new SupplierFinanceController(db);
-  const clientFinanceController = new ClientFinanceController(db);
-  const representativeController = new RepresentativeController(db);
-  const serviceController = new ServiceController(db);
-  // const clientController = new ClientController(db);
+  try {
+    // Initialize controllers
+    const supplierController = new SupplierController(db);
+    const clientController = new ClientController(db);
+    const productController = new ProductController(db);
+    const supplierFinanceController = new SupplierFinanceController(db);
+    const clientFinanceController = new ClientFinanceController(db);
+    const representativeController = new RepresentativeController(db);
+    const serviceController = new ServiceController(db);
+    const planningController = new PlanningController(db);
+
+    console.log('Controllers initialized successfully');
+  } catch (error) {
+    console.error('FAILED TO INITIALIZE CONTROLLERS:', error);
+    throw error;
+  }
 
   // ============================================
   // SUPPLIER ROUTES
@@ -443,6 +467,63 @@ function setupIpcHandlers() {
     return await supplierController.delete(event, id);
   });
 
+  // ============================================
+  // PLANNING ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.GET_ALL,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.GET_ALL,
+        async (event, options) => await planningController.getAll(event, options)
+      ),
+      'PlanningController.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.GET_BY_ID,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.GET_BY_ID,
+        async (event, id) => await planningController.getById(event, id)
+      ),
+      'PlanningController.getById'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.CREATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.CREATE,
+        async (event, planningData) => await planningController.create(event, planningData)
+      ),
+      'PlanningController.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.UPDATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.UPDATE,
+        async (event, id, planningData) => await planningController.update(event, id, planningData)
+      ),
+      'PlanningController.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.DELETE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.DELETE,
+        async (event, id) => await planningController.delete(event, id)
+      ),
+      'PlanningController.delete'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.SEARCH,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.SEARCH,
+        async (event, searchTerm) => await planningController.search(event, searchTerm)
+      ),
+      'PlanningController.search'
+    )
+  );
 
   // ============================================
   // BATCH (LOTS) ROUTES
@@ -1312,6 +1393,64 @@ function setupIpcHandlers() {
     )
   );
 
+  // ============================================
+  // PLANNING ROUTES
+  // ============================================
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.GET_ALL,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.GET_ALL,
+        async (event, options) => await planningController.getAll(event, options)
+      ),
+      'PlanningController.getAll'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.GET_BY_ID,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.GET_BY_ID,
+        async (event, id) => await planningController.getById(event, id)
+      ),
+      'PlanningController.getById'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.CREATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.CREATE,
+        async (event, planningData) => await planningController.create(event, planningData)
+      ),
+      'PlanningController.create'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.UPDATE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.UPDATE,
+        async (event, id, planningData) => await planningController.update(event, id, planningData)
+      ),
+      'PlanningController.update'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.DELETE,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.DELETE,
+        async (event, id) => await planningController.delete(event, id)
+      ),
+      'PlanningController.delete'
+    )
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PLANNINGS.SEARCH,
+    ErrorMiddleware.wrap(
+      RequestLogger.wrapHandler(IPC_CHANNELS.PLANNINGS.SEARCH,
+        async (event, searchTerm) => await planningController.search(event, searchTerm)
+      ),
+      'PlanningController.search'
+    )
+  );
+
   ipcMain.handle(IPC_CHANNELS.SYSTEM.RESET_DATABASE,
     ErrorMiddleware.wrap(
       async (event, newCurrency) => {
@@ -1322,7 +1461,7 @@ function setupIpcHandlers() {
           'supplier_payments', 'supplier_transactions', 'suppliers',
           'batches', 'products', 'categories', 'brands', 'product_families',
           'worker_payments', 'workers', 'services', 'service_categories',
-          'representatives', 'storehouses', 'shelves'
+          'representatives', 'storehouses', 'shelves', 'plannings'
         ];
 
         db.transaction(() => {

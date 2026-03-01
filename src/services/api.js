@@ -147,6 +147,42 @@ class ApiService {
     return await window.electronAPI.products.delete(id);
   }
 
+  // Services
+  async getAllServices() {
+    if (!this.isElectron()) {
+      return { success: true, data: [] };
+    }
+    return await window.electronAPI.services.getAll();
+  }
+
+  async getServiceById(id) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.services.getById(id);
+  }
+
+  async createService(service) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.services.create(service);
+  }
+
+  async updateService(id, service) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.services.update(id, service);
+  }
+
+  async deleteService(id) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.services.delete(id);
+  }
+
   // Dashboard
   async getDashboardStats() {
     if (!this.isElectron()) {
@@ -160,6 +196,49 @@ class ApiService {
       return { success: true, data: [] };
     }
     return await window.electronAPI.dashboard.getSalesChart(period);
+  }
+
+  // Plannings
+  async getAllPlannings(options = {}) {
+    if (!this.isElectron()) {
+      return { success: true, data: [] };
+    }
+    return await window.electronAPI.plannings.getAll(options);
+  }
+
+  async getPlanningById(id) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.plannings.getById(id);
+  }
+
+  async createPlanning(data) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.plannings.create(data);
+  }
+
+  async updatePlanning(id, data) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.plannings.update(id, data);
+  }
+
+  async deletePlanning(id) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.plannings.delete(id);
+  }
+
+  async searchPlannings(searchTerm) {
+    if (!this.isElectron()) {
+      return { success: false, error: 'Not running in Electron' };
+    }
+    return await window.electronAPI.plannings.search(searchTerm);
   }
 }
 

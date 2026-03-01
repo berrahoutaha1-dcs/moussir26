@@ -52,15 +52,15 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
     const startingDayOfWeek = firstDay.getDay();
 
     const days = [];
-    
+
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(year, month, i));
     }
-    
+
     return days;
   };
 
@@ -75,14 +75,14 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
   const getPlanningsForDay = (date) => {
     if (!date) return [];
     const dateKey = formatDateKey(date);
-    
+
     const dayPlannings = plannings.filter(p => p.scheduledDate === dateKey);
-    
+
     return dayPlannings.filter(planning => {
       const status = mapPlanningStatus(planning.status);
       const matchesStatus = filterStatus === 'all' || status === filterStatus;
       const matchesSearch = planning.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           planning.serviceDescription.toLowerCase().includes(searchQuery.toLowerCase());
+        planning.serviceDescription.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesStatus && matchesSearch;
     });
   };
@@ -104,7 +104,7 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
 
   const days = getDaysInMonth(currentDate);
   const monthName = currentDate.toLocaleString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
-  const weekDays = language === 'ar' 
+  const weekDays = language === 'ar'
     ? ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
     : language === 'fr'
       ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
@@ -113,18 +113,18 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
   const selectedDayPlannings = selectedDay ? getPlanningsForDay(selectedDay) : [];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] h-[95vh] flex flex-col border-3 border-gray-300 ${direction === 'rtl' ? 'rtl' : ''}`}>
-        <div className={`bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b-2 border-gray-200 flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} justify-between rounded-t-2xl`}>
-          <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} gap-4`}>
-            <div className="bg-white p-3 rounded-xl shadow-md border-2 border-gray-300">
-              <CalendarIcon className="w-7 h-7" style={{ color: '#1b1b1b' }} />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-300">
+      <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-[85vw] h-[85vh] flex flex-col border border-slate-200 overflow-hidden ${direction === 'rtl' ? 'rtl' : ''}`}>
+        <div className={`bg-white px-6 py-4 border-b border-slate-100 flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} justify-between shadow-sm z-10`}>
+          <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} gap-3`}>
+            <div className="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-100">
+              <CalendarIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold" style={{ color: '#1b1b1b' }}>
+              <h2 className="text-lg font-extrabold text-[#0f172a] tracking-tight leading-none">
                 {t('calendar.title')}
               </h2>
-              <p className="text-sm text-gray-600">
+              <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">
                 {t('calendar.subtitle')}
               </p>
             </div>
@@ -137,17 +137,17 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
           </button>
         </div>
 
-        <div className="px-8 py-4 bg-gray-50 border-b border-gray-200">
-          <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} gap-4 flex-wrap`}>
-            <div className="flex-1 min-w-[250px]">
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-100">
+          <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} gap-3 flex-wrap`}>
+            <div className="flex-1 min-w-[200px]">
               <div className="relative">
-                <Search className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400`} />
+                <Search className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400`} />
                 <Input
                   type="text"
                   placeholder={t('calendar.search')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`${direction === 'rtl' ? 'pr-10' : 'pl-10'} py-2 border-2 border-gray-300 rounded-lg focus:border-gray-500 transition-all`}
+                  className={`${direction === 'rtl' ? 'pr-9' : 'pl-9'} h-9 py-1 bg-white border-slate-200 rounded-lg focus:ring-indigo-500 transition-all text-xs`}
                 />
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none transition-all bg-white"
+              className="h-9 px-3 py-1 border border-slate-200 rounded-lg focus:ring-indigo-500 focus:outline-none transition-all bg-white text-xs font-semibold text-slate-700"
             >
               <option value="all">{t('calendar.filter.all')}</option>
               <option value="terminé">{t('calendar.filter.completed')}</option>
@@ -167,42 +167,42 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
         </div>
 
         <div className="flex-1 overflow-hidden flex">
-          <div className={`flex-1 p-6 overflow-auto ${selectedDay ? 'w-2/3' : 'w-full'}`}>
-            <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} justify-between mb-6`}>
+          <div className={`flex-1 p-4 overflow-auto ${selectedDay ? 'w-2/3' : 'w-full'}`}>
+            <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} justify-between mb-4`}>
               <button
                 onClick={previousMonth}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-all border-2 border-gray-300"
+                className="p-1.5 hover:bg-slate-100 rounded-lg transition-all border border-slate-200 text-slate-600"
               >
-                <ChevronLeft className="w-6 h-6 text-gray-700" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              
-              <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} gap-4`}>
-                <h3 className="text-xl font-bold capitalize" style={{ color: '#1b1b1b' }}>
+
+              <div className={`flex items-center ${direction === 'rtl' ? 'flex-row-reverse' : ''} gap-3`}>
+                <h3 className="text-base font-extrabold text-slate-800 capitalize leading-none">
                   {monthName}
                 </h3>
                 <Button
                   onClick={goToToday}
                   variant="outline"
-                  className="border-2 border-gray-300 hover:bg-gray-100"
+                  className="h-8 border border-slate-200 hover:bg-slate-50 text-[10px] font-bold px-3"
                 >
                   {t('calendar.today')}
                 </Button>
               </div>
-              
+
               <button
                 onClick={nextMonth}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-all border-2 border-gray-300"
+                className="p-1.5 hover:bg-slate-100 rounded-lg transition-all border border-slate-200 text-slate-600"
               >
-                <ChevronRight className="w-6 h-6 text-gray-700" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200">
-              <div className="grid grid-cols-7 gap-0 border-b-2 border-gray-200">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="grid grid-cols-7 gap-0 border-b border-slate-100 bg-slate-50/50">
                 {weekDays.map(day => (
                   <div
                     key={day}
-                    className="py-3 text-center font-bold text-gray-700 bg-gray-50 text-sm"
+                    className="py-2 text-center font-bold text-slate-400 uppercase tracking-tighter text-[9px]"
                   >
                     {day}
                   </div>
@@ -219,19 +219,19 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
                     <div
                       key={index}
                       onClick={() => date && setSelectedDay(date)}
-                      className={`min-h-[120px] p-2 border border-gray-200 cursor-pointer transition-all hover:bg-gray-50
-                        ${!date ? 'bg-gray-50' : ''}
-                        ${isToday ? 'bg-blue-50 border-2 border-blue-500' : ''}
-                        ${isSelected ? 'bg-blue-100 border-2 border-blue-600' : ''}
+                      className={`min-h-[85px] p-1.5 border border-slate-50 cursor-pointer transition-all hover:bg-indigo-50/30 group
+                        ${!date ? 'bg-slate-50/50' : 'bg-white'}
+                        ${isToday ? 'bg-indigo-50/50 ring-1 ring-inset ring-indigo-500' : ''}
+                        ${isSelected ? 'bg-indigo-100/50 ring-2 ring-inset ring-indigo-600' : ''}
                       `}
                     >
                       {date && (
                         <>
-                          <div className={`font-bold text-sm mb-1 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                          <div className={`font-black text-[10px] mb-1 flex items-center justify-center w-5 h-5 rounded-full transition-colors ${isToday ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-50'}`}>
                             {date.getDate()}
                           </div>
-                          <div className="space-y-1 overflow-y-auto max-h-[90px]">
-                            {dayPlannings.slice(0, 3).map(planning => {
+                          <div className="space-y-0.5 overflow-hidden">
+                            {dayPlannings.slice(0, 2).map(planning => {
                               const status = mapPlanningStatus(planning.status);
                               return (
                                 <div
@@ -239,13 +239,13 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
                                   className={`${getStatusColor(status)} px-2 py-1 rounded text-xs flex items-center gap-1`}
                                 >
                                   {getStatusIcon(status)}
-                                  <span className="truncate flex-1">{planning.clientName}</span>
+                                  <span className="truncate flex-1 font-bold">{planning.clientName}</span>
                                 </div>
                               );
                             })}
-                            {dayPlannings.length > 3 && (
-                              <div className="text-xs text-gray-500 font-medium text-center">
-                                +{dayPlannings.length - 3} {t('calendar.more')}
+                            {dayPlannings.length > 2 && (
+                              <div className="text-[8px] text-slate-400 font-black text-center uppercase tracking-tighter mt-0.5">
+                                +{dayPlannings.length - 2} {t('calendar.more')}
                               </div>
                             )}
                           </div>
@@ -259,9 +259,9 @@ export default function CalendarModal({ isOpen, onClose, plannings = [] }) {
           </div>
 
           {selectedDay && (
-            <div className={`w-1/3 border-l-2 border-gray-200 bg-gray-50 p-6 overflow-auto ${direction === 'rtl' ? 'border-r-2 border-l-0' : ''}`}>
-              <h3 className={`font-bold text-lg mb-4 ${direction === 'rtl' ? 'text-right' : ''}`} style={{ color: '#1b1b1b' }}>
-                {t('calendar.details')} - {selectedDay.toLocaleDateString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <div className={`w-1/3 border-l border-slate-100 bg-white p-5 overflow-auto shadow-inner ${direction === 'rtl' ? 'border-r border-l-0' : ''}`}>
+              <h3 className={`font-black text-xs text-slate-800 mb-4 uppercase tracking-widest ${direction === 'rtl' ? 'text-right' : ''}`}>
+                {selectedDay.toLocaleDateString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
               </h3>
 
               {selectedDayPlannings.length === 0 ? (

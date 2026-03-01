@@ -400,6 +400,7 @@ app.whenReady().then(() => {
   // Setup IPC handlers for database operations
   setupIpcHandlers();
 
+  /*
   // Register image protocol
   protocol.registerFileProtocol('app-img', (request, callback) => {
     // Standard protocols (standard: true) interpret app-img://file.png as host=file.png path=/
@@ -422,6 +423,7 @@ app.whenReady().then(() => {
 
     callback({ path: finalPath });
   });
+  */
 
   createWindow();
 
@@ -430,6 +432,14 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+}).catch(err => {
+  console.error('ERROR in app.whenReady():', err);
+  if (err && err.stack) console.error(err.stack);
+});
+
+// Added this to catch the "UnhandledPromiseRejection"
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 app.on('window-all-closed', () => {

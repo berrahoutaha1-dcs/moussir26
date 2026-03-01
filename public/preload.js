@@ -175,6 +175,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id) => ipcRenderer.invoke('printers:delete', id),
     detect: () => ipcRenderer.invoke('printers:detect'),
   },
+  plannings: {
+    getAll: (options) => ipcRenderer.invoke('plannings:getAll', options),
+    getById: (id) => ipcRenderer.invoke('plannings:getById', id),
+    create: (data) => ipcRenderer.invoke('plannings:create', data),
+    update: (id, data) => ipcRenderer.invoke('plannings:update', id, data),
+    delete: (id) => ipcRenderer.invoke('plannings:delete', id),
+    search: (searchTerm) => ipcRenderer.invoke('plannings:search', searchTerm),
+  },
   system: {
     resetDatabase: (newCurrency) => ipcRenderer.invoke('system:resetDatabase', newCurrency),
   }

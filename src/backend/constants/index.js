@@ -192,6 +192,14 @@ const IPC_CHANNELS = {
     DELETE: 'printers:delete',
     DETECT: 'printers:detect'
   },
+  PLANNINGS: {
+    GET_ALL: 'plannings:getAll',
+    GET_BY_ID: 'plannings:getById',
+    CREATE: 'plannings:create',
+    UPDATE: 'plannings:update',
+    DELETE: 'plannings:delete',
+    SEARCH: 'plannings:search'
+  },
   SYSTEM: {
     RESET_DATABASE: 'system:resetDatabase'
   }
